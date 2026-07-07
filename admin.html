@@ -785,4 +785,97 @@ function renderPicker(){
  wrap.appendChild(add);
 }
 async function showPicker(){
- if(Object.values(files).
+ if(Object.values(files).some(st=>st.dirty)&&!confirm('Discard unsaved changes and switch site?'))return;
+ $('app').style.display='none';$('gate').style.display='none';$('picker').style.display='flex';
+ const r=await api('/api/sites');
+ if(r.status===401){sessionStorage.removeItem('jrd-admin-key');location.reload();return;}
+ SITES=(r.json&&r.json.sites)||[];
+ renderPicker();
+}
+async function selectSite(s){
+ curSite=s;sessionStorage.setItem('jrd-admin-site',s.id);
+ const r=await api('/api/load?file='+encodeURIComponent(s.schema||'_schema.json')+'&site='+encodeURIComponent(s.id));
+ if(r.status!==200){alert('Could not load the schema for '+s.label+': '+((r.json&&r.json.error)||r.status));return;}
+ compileSchema(r.json.content);
+ for(const k in files)delete files[k];        // clear cache when switching repos
+ const first=SECTIONS.find(x=>x.id);curId=first?first.id:'home';
+ $('siteLabel').textContent=s.label;
+ $('picker').style.display='none';$('gate').style.display='none';$('app').style.display='block';
+ initApp();
+}
+/* ============ gate ============ */
+async function tryLogin(pw){
+ sessionStorage.setItem('jrd-admin-key',pw);
+ const r=await api('/api/sites');
+ if(r.status===200){
+  SITES=(r.json&&r.json.sites)||[];
+  $('gate').style.display='none';
+  const last=sessionStorage.getItem('jrd-admin-site');
+  const found=last&&SITES.find(s=>s.id===last);
+  if(found)selectSite(found);else showPicker();
+  return true;
+ }
+ sessionStorage.removeItem('jrd-admin-key');return false;
+}
+$('login').onclick=async()=>{$('gate-err').textContent='';if(!await tryLogin($('pw').value))$('gate-err').textContent='Wrong password (or server not configured).';};
+$('picker-logout').onclick=()=>{sessionStorage.removeItem('jrd-admin-key');sessionStorage.removeItem('jrd-admin-site');location.reload();};
+/* ============ add-site form ============ */
+let addMode='add';
+const slugify=s=>String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+function fillForm(s){
+ $('as-label').value=s.label||'';
+ $('as-id').value=s.id||'';
+ $('as-repo').value=s.repo||'';
+ $('as-branch').value=s.branch||'main';
+ $('as-url').value=s.liveUrl||'';
+ $('as-files').value=(s.files||[]).join('\n');
+}
+function openAddSite(){
+ addMode='add';fillForm({branch:'main'});
+ $('as-id').readOnly=false;$('as-id').style.opacity='';
+ $('as-title').textContent='New site';$('as-add').textContent='Add site';$('as-hint').style.display='';
+ $('as-err').className='err';$('as-err').style.color='';$('as-err').textContent='';
+ $('addsite').style.display='flex';$('as-label').focus();
+}
+function openEditSite(s){
+ addMode='edit';fillForm(s);
+ $('as-id').readOnly=true;$('as-id').style.opacity='.55';
+ $('as-title').textContent='Edit site';$('as-add').textContent='Save changes';$('as-hint').style.display='none';
+ $('as-err').className='err';$('as-err').style.color='';$('as-err').textContent='';
+ $('addsite').style.display='flex';$('as-label').focus();
+}
+function closeAddSite(){$('addsite').style.display='none';}
+async function submitAddSite(){
+ const site={
+  label:$('as-label').value.trim(),
+  id:$('as-id').value.trim()||slugify($('as-label').value),
+  repo:$('as-repo').value.trim(),
+  branch:$('as-branch').value.trim()||'main',
+  liveUrl:$('as-url').value.trim(),
+  files:$('as-files').value.split('\n').map(s=>s.trim()).filter(Boolean)
+ };
+ $('as-err').className='err';$('as-err').style.color='#94a3b8';$('as-err').textContent=addMode==='edit'?'Saving…':'Adding…';$('as-add').disabled=true;
+ const r=await api('/api/sites',{method:'POST',body:JSON.stringify({op:addMode,site})});
+ $('as-add').disabled=false;$('as-err').style.color='';
+ if(r.status!==200){$('as-err').textContent=(r.json&&r.json.error)||('Error '+r.status);return;}
+ SITES=(r.json&&r.json.sites)||SITES;
+ closeAddSite();renderPicker();
+}
+async function deleteSite(s){
+ if(!confirm('Remove “'+s.label+'” from the CMS?\n\nThis only removes it from the site list — it does NOT delete the repo or the live website.'))return;
+ const r=await api('/api/sites',{method:'POST',body:JSON.stringify({op:'delete',id:s.id})});
+ if(r.status!==200){alert('Delete failed: '+((r.json&&r.json.error)||r.status));return;}
+ SITES=(r.json&&r.json.sites)||SITES;
+ if(sessionStorage.getItem('jrd-admin-site')===s.id)sessionStorage.removeItem('jrd-admin-site');
+ renderPicker();
+}
+$('as-add').onclick=submitAddSite;
+$('as-cancel').onclick=closeAddSite;
+$('as-label').addEventListener('blur',()=>{if(!$('as-id').value)$('as-id').value=slugify($('as-label').value);});
+$('as-files').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey))submitAddSite();});
+$('pw').addEventListener('keydown',e=>{if(e.key==='Enter')$('login').click();});
+window.addEventListener('beforeunload',e=>{if(Object.values(files).some(s=>s.dirty)){e.preventDefault();e.returnValue='';}});
+if(key())tryLogin(key());
+</script>
+</body>
+</html>
