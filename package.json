@@ -1,0 +1,9 @@
+{
+  "name": "jrd-animation-cms",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone multi-site CMS (admin UI + serverless API) for JRD-managed static sites.",
+  "engines": {
+    "node": ">=18"
+  }
+}

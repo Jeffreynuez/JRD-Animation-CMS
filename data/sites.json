@@ -1,0 +1,38 @@
+{
+ "version": 1,
+ "sites": [
+  {
+   "id": "jrd",
+   "label": "JRD Portfolio",
+   "repo": "Jeffreynuez/JRD-Online_Portfolio",
+   "branch": "main",
+   "liveUrl": "https://jrd-online-portfolio.vercel.app",
+   "schema": "_schema.json",
+   "files": [
+    "pages.json",
+    "home.json",
+    "apps.json",
+    "animation.json",
+    "ai-workflows.json",
+    "rigging.json",
+    "resume.json",
+    "theme.json",
+    "styles.json"
+   ]
+  },
+  {
+   "id": "proguild",
+   "label": "Proguild",
+   "repo": "Jeffreynuez/Proguild",
+   "branch": "main",
+   "liveUrl": "https://proguild.vercel.app/",
+   "schema": "_schema.json",
+   "files": [
+    "pages.json",
+    "team.json",
+    "privacy.json",
+    "theme.json"
+   ]
+  }
+ ]
+}
