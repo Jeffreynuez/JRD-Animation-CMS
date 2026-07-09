@@ -676,6 +676,7 @@ async function showSelection(d){
    const md=()=>{st.dirty=true;renderSidebar();};
    body.appendChild(renderField(fd,pk.obj,md,{onChange:(fdef,val)=>vApply(d.edit,val)}));
    try{await ensureFile('styles.json');}catch(e){}
+   try{await ensureFile('theme.json');}catch(e){}
    if(!files['styles.json'])files['styles.json']={content:{},sha:null,dirty:false};
    body.appendChild(styleControls(d.edit));
    const tip=document.createElement('p');tip.className='msg';tip.textContent='Tip: you can also type directly on the page.';body.appendChild(tip);
