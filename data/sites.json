@@ -33,6 +33,21 @@
     "privacy.json",
     "theme.json"
    ]
+  },
+  {
+   "id": "gcwindsor",
+   "label": "GC Windsor",
+   "repo": "Jeffreynuez/GC-Windsor",
+   "branch": "main",
+   "liveUrl": "https://gc-windsor.vercel.app",
+   "schema": "_schema.json",
+   "files": [
+    "pages.json",
+    "swapper.json",
+    "products.json",
+    "gallery.json",
+    "theme.json"
+   ]
   }
  ]
 }
