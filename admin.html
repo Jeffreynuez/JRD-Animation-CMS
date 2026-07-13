@@ -226,9 +226,14 @@ const f=(k,l,type=T.TEXT,extra={})=>({k,l,type,...extra});
 /* ============ schema (loaded per-site from data/_schema.json) ============ */
 let SECTIONS=[];   // compiled runtime schema for the currently selected site
 let VPAGES=[];     // [[file,label],...] for the page dropdown, from schema.pages
+let SITE_CLOUD=''; // this site's Cloudinary cloud   (from _schema.json cloudName)
+let SITE_FOLDER='';// this site's Cloudinary folder  (from _schema.json mediaFolder)
 const tplStr=(s,item)=>String(s).replace(/\{(\w+)\}/g,(_,k)=>(item[k]==null?'':item[k]));
 function compileSchema(json){
  VPAGES=Array.isArray(json.pages)?json.pages:[];
+ /* each managed site declares its own Cloudinary cloud + media folder */
+ SITE_CLOUD=json.cloudName||'';
+ SITE_FOLDER=json.mediaFolder||'';
  if(json.cloudName)CDNP='https://res.cloudinary.com/'+json.cloudName+'/';
  SECTIONS=(json.sections||[]).map(s=>{
   if(s.group)return s;
@@ -294,11 +299,13 @@ function renderPrev(box,val,multi){
 }
 async function uploadToCloudinary(file,onmsg){
  onmsg('Signing…');
- const s=await api('/api/sign-upload',{method:'POST',body:JSON.stringify({})});
+ /* route the upload to THIS site's cloud + folder, not a hardcoded one */
+ const s=await api('/api/sign-upload',{method:'POST',body:JSON.stringify({cloudName:SITE_CLOUD,folder:SITE_FOLDER})});
  if(s.status!==200)throw new Error(s.json.error||'sign failed');
  const fd=new FormData();
  fd.append('file',file);fd.append('api_key',s.json.apiKey);
  fd.append('timestamp',s.json.timestamp);fd.append('signature',s.json.signature);
+ if(s.json.folder)fd.append('folder',s.json.folder);
  onmsg('Uploading…');
  const r=await fetch('https://api.cloudinary.com/v1_1/'+s.json.cloudName+'/auto/upload',{method:'POST',body:fd});
  const j=await r.json();
