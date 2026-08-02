@@ -301,14 +301,21 @@ function renderPrev(box,val,multi){
  urls.map(u=>u&&String(u).trim()).filter(Boolean).slice(0,12).forEach(u=>{const p=previewEl(u);if(p)box.appendChild(p);});
 }
 async function uploadToCloudinary(file,onmsg){
+ /* guard rails: Cloudinary free plan hard caps (10MB image / 100MB video).
+    Oversized files fail AFTER a long upload, so refuse them up front. */
+ const isv=/^video\//.test(file.type||'')||/\.(mp4|webm|mov)$/i.test(file.name||'');
+ const maxMB=isv?100:10;
+ if(file.size>maxMB*1024*1024)
+  throw new Error((file.size/1048576).toFixed(1)+'MB — max '+maxMB+'MB for '+(isv?'video':'images')+'. Resize/re-export and try again.');
  onmsg('Signing…');
  /* route the upload to THIS site's cloud + folder, not a hardcoded one */
- const s=await api('/api/sign-upload',{method:'POST',body:JSON.stringify({cloudName:SITE_CLOUD,folder:SITE_FOLDER})});
+ const s=await api('/api/sign-upload',{method:'POST',body:JSON.stringify({cloudName:SITE_CLOUD,folder:SITE_FOLDER,kind:isv?'video':'image'})});
  if(s.status!==200)throw new Error(s.json.error||'sign failed');
  const fd=new FormData();
  fd.append('file',file);fd.append('api_key',s.json.apiKey);
  fd.append('timestamp',s.json.timestamp);fd.append('signature',s.json.signature);
  if(s.json.folder)fd.append('folder',s.json.folder);
+ if(s.json.transformation)fd.append('transformation',s.json.transformation);
  onmsg('Uploading…');
  const r=await fetch('https://api.cloudinary.com/v1_1/'+s.json.cloudName+'/auto/upload',{method:'POST',body:fd});
  const j=await r.json();
@@ -598,7 +605,7 @@ function renderBlocks(){
      mk('↑',()=>{if(idx>0){[arr[idx-1],arr[idx]]=[arr[idx],arr[idx-1]];markDirty();draw();}});
      mk('↓',()=>{if(idx<arr.length-1){[arr[idx+1],arr[idx]]=[arr[idx],arr[idx+1]];markDirty();draw();}});
      mk('Duplicate',()=>{arr.splice(idx+1,0,JSON.parse(JSON.stringify(item)));markDirty();draw();});
-     mk('Delete',()=>{if(confirm('Delete "'+t+'"?')){arr.splice(idx,1);markDirty();draw();}},'danger');
+     mk('Delete',()=>{if(confirm('Delete "'+t+'"?')){arr.splice(idx,1);vItemRemove(bf,b.path,idx);markDirty();draw();}},'danger');
      headEl.appendChild(btns);
      headEl.onclick=e=>{if(e.target.tagName==='BUTTON')return;card.classList.toggle('open');};
      headEl.addEventListener('dragstart',e=>{dragFrom=idx;card.style.opacity='.4';try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(idx));}catch(_){}});
@@ -645,6 +652,7 @@ function postTheme(){
   vframe().contentWindow.postMessage({jrd:'theme',css:clientThemeCss(files['theme.json'].content)},'*');
 }
 const vApply=(edit,val)=>{if(vframe().contentWindow)vframe().contentWindow.postMessage({jrd:'apply',edit,value:val},'*');};
+const vItemRemove=(fn,arrPath,idx)=>{if(vframe().contentWindow)vframe().contentWindow.postMessage({jrd:'item-remove',file:fn,arr:arrPath,idx:idx},'*');};
 function loadFrame(){
  const base=(curSite&&curSite.liveUrl?curSite.liveUrl:'').replace(/\/$/,'');
  vframe().src=(base?base+'/':'')+$('vpage').value+'?edit=1';
@@ -698,7 +706,7 @@ async function showSelection(d){
    const parts=d.item.split('#'),fn=parts[0],arrPath=parts[1],idx=+parts[2];
    const st=await ensureFile(fn);
    const arr=resolve(st.content,arrPath),item=arr&&arr[idx];
-   if(!item){body.innerHTML='<p class="msg err">Item not found — Reload and try again.</p>';$('selpanel').classList.add('open');return;}
+   if(!item){body.innerHTML='<p class="msg err">This item is not in your current draft — it was added or removed since the page was last published. Click SAVE &amp; PUBLISH, wait for the countdown, and the page will match again.</p>';$('selpanel').classList.add('open');return;}
    let bd=null;SECTIONS.forEach(s=>{(s.blocks||[]).forEach(b=>{if(b.kind==='arr'&&(b.file||s.file)===fn&&b.path===arrPath)bd=b;});});
    $('seltitle').textContent=(bd&&bd.title&&bd.title(item))||(arrPath+' · '+(idx+1));
    const fields=bd?bd.fields:Object.keys(item).filter(k=>typeof item[k]!=='object').map(k=>f(k,k));

@@ -30,11 +30,19 @@ module.exports = async (req, res) => {
 
   const timestamp = Math.floor(Date.now() / 1000);
 
+  /* Incoming transformation: images are capped at 2600px on the long edge at
+     UPLOAD time, so a 40MB phone photo is stored as a lean web-ready master.
+     Delivery URLs add f_auto,q_auto on top, so what visitors download is
+     optimized twice over. Videos are stored as-is (capping video re-encodes). */
+  const kind = String(body.kind || 'image') === 'video' ? 'video' : 'image';
+  const transformation = kind === 'image' ? 'c_limit,w_2600,h_2600' : '';
+
   /* Every signed param must be in the signature, sorted by key. */
   const params = { timestamp: String(timestamp) };
   if (folder) params.folder = folder;
+  if (transformation) params.transformation = transformation;
   const toSign = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join('&');
   const signature = crypto.createHash('sha1').update(toSign + secret).digest('hex');
 
-  res.status(200).json({ cloudName, apiKey, timestamp, signature, folder: folder || undefined });
+  res.status(200).json({ cloudName, apiKey, timestamp, signature, folder: folder || undefined, transformation: transformation || undefined });
 };
