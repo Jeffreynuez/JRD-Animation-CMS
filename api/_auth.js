@@ -123,7 +123,7 @@ async function authUser(req) {
   return null;
 }
 const isAdmin = u => !!u && (u.role === 'owner' || u.role === 'admin');
-const publicUser = u => ({ id: u.id, email: u.email, name: u.name || '', role: u.role, sites: u.sites || [], caps: u.caps || {}, status: u.status, twoFactor: !!(u.totp && u.totp.enabled), createdAt: u.createdAt });
+const publicUser = u => ({ id: u.id, email: u.email, name: u.name || '', role: u.role, sites: u.sites || [], perms: u.perms || {}, caps: u.caps || {}, status: u.status, twoFactor: !!(u.totp && u.totp.enabled), createdAt: u.createdAt });
 
 /* ---------- in-memory login throttle (best effort per lambda instance) ---------- */
 const attempts = new Map();
@@ -173,6 +173,83 @@ function inviteEmailHtml(name, link, isReset) {
 }
 const setpwLink = token => ADMIN_URL + '?setpw=' + encodeURIComponent(token);
 
+/* ---------- permissions (Phase 2) ---------- */
+function siteAllowed(u, siteId) {
+  if (isAdmin(u)) return true;
+  const s = u.sites || [];
+  return s.includes('*') || s.includes(siteId);
+}
+/* caps: canPublish + canTheme are OPT-IN; canUpload + canDelete default ON */
+function can(u, cap) {
+  if (isAdmin(u)) return true;
+  const c = (u && u.caps) || {};
+  if (cap === 'canPublish' || cap === 'canTheme') return c[cap] === true;
+  return c[cap] !== false;
+}
+/* section grants -> the data files they map to (per the site's own schema) */
+const schemaCache = new Map();
+async function siteSchema(site) {
+  const hit = schemaCache.get(site.id);
+  if (hit && Date.now() - hit.t < 60000) return hit.schema;
+  const ref = site.branch ? '?ref=' + encodeURIComponent(site.branch) : '';
+  const r = await gh(`/repos/${site.repo}/contents/data/${site.schema || '_schema.json'}${ref}`);
+  const schema = r.status === 200 ? JSON.parse(Buffer.from(r.json.content, 'base64').toString('utf8')) : { sections: [] };
+  schemaCache.set(site.id, { t: Date.now(), schema });
+  return schema;
+}
+const USER_ALWAYS_WRITE = ['styles.json'];  // inline text styling rides along with any grant
+async function allowedWriteFiles(u, site) {
+  if (isAdmin(u)) return '*';
+  const p = ((u.perms || {})[site.id]) || {};
+  const secs = p.sections || [];
+  if (secs.includes('*')) return '*';
+  const schema = await siteSchema(site);
+  const set = new Set(USER_ALWAYS_WRITE);
+  (schema.sections || []).forEach(sec => {
+    if (sec.group || !secs.includes(sec.id)) return;
+    if (sec.file) set.add(sec.file);
+    (sec.blocks || []).forEach(b => { if (b.file) set.add(b.file); });
+  });
+  return set;
+}
+
+/* ---------- drafts (live in the private users repo - never trigger a site rebuild) ---------- */
+async function readDraft(siteId, file) {
+  const r = await gh(`/repos/${USERS_REPO}/contents/drafts/${siteId}/${file}?ref=${USERS_BRANCH}`);
+  if (r.status !== 200) return null;
+  return { data: JSON.parse(Buffer.from(r.json.content, 'base64').toString('utf8')), sha: r.json.sha };
+}
+async function writeDraft(siteId, file, data) {
+  const cur = await readDraft(siteId, file);
+  const body = {
+    message: 'cms: draft ' + siteId + '/' + file,
+    content: Buffer.from(JSON.stringify(data, null, 1)).toString('base64'),
+    branch: USERS_BRANCH,
+  };
+  if (cur) body.sha = cur.sha;
+  const r = await gh(`/repos/${USERS_REPO}/contents/drafts/${siteId}/${file}`, { method: 'PUT', body: JSON.stringify(body) });
+  return r.status === 200 || r.status === 201;
+}
+async function listDrafts(siteId) {
+  const r = await gh(`/repos/${USERS_REPO}/contents/drafts/${siteId}?ref=${USERS_BRANCH}`);
+  if (r.status !== 200 || !Array.isArray(r.json)) return [];
+  const out = [];
+  for (const f of r.json) {
+    const d = await readDraft(siteId, f.name);
+    if (d) out.push({ file: f.name, author: d.data.author, savedAt: d.data.savedAt });
+  }
+  return out;
+}
+async function deleteDraft(siteId, file) {
+  const r = await gh(`/repos/${USERS_REPO}/contents/drafts/${siteId}/${file}?ref=${USERS_BRANCH}`);
+  if (r.status !== 200) return true;
+  const d = await gh(`/repos/${USERS_REPO}/contents/drafts/${siteId}/${file}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ message: 'cms: clear draft ' + siteId + '/' + file, sha: r.json.sha, branch: USERS_BRANCH }),
+  });
+  return d.status === 200;
+}
+
 function readBody(req) {
   let b = req.body;
   if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = {}; } }
@@ -185,4 +262,5 @@ module.exports = {
   signToken, verifyToken, setSessionCookie, clearSessionCookie, sessionFromReq,
   authUser, isAdmin, publicUser, throttle, recordFail, recordOk,
   sendMail, inviteEmailHtml, setpwLink, readBody, validEmail, SESSION_DAYS,
+  siteAllowed, can, allowedWriteFiles, readDraft, writeDraft, listDrafts, deleteDraft,
 };

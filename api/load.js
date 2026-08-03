@@ -1,11 +1,14 @@
 'use strict';
-const { getSite, canRead, checkAuth, gh } = require('./_lib.js');
+const { getSite, canRead, gh } = require('./_lib.js');
+const A = require('./_auth.js');
 
 module.exports = async (req, res) => {
-  if (!checkAuth(req)) return res.status(401).json({ error: 'unauthorized' });
+  const me = await A.authUser(req).catch(() => null);
+  if (!me) return res.status(401).json({ error: 'unauthorized' });
   const file = String(req.query.file || '');
   const site = await getSite(req.query.site ? String(req.query.site) : '');
   if (!site) return res.status(400).json({ error: 'unknown site' });
+  if (!A.siteAllowed(me, site.id)) return res.status(403).json({ error: 'Your account does not have access to this site.' });
   if (!canRead(site, file)) return res.status(400).json({ error: 'file not editable' });
   const ref = site.branch ? '?ref=' + encodeURIComponent(site.branch) : '';
   const r = await gh(`/repos/${site.repo}/contents/data/${file}${ref}`);

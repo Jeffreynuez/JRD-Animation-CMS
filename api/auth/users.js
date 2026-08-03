@@ -58,6 +58,22 @@ module.exports = async (req, res) => {
     return res.status(200).json({ link, emailed });
   }
 
+  if (action === 'update') {
+    if (target.role === 'owner' && me.role !== 'owner')
+      return res.status(403).json({ error: 'Only the owner can modify an owner.' });
+    if (b.role !== undefined && b.role !== target.role) {
+      if (me.role !== 'owner') return res.status(403).json({ error: 'Only the owner can change roles.' });
+      if (target.id === me.id) return res.status(400).json({ error: 'You cannot change your own role.' });
+      if (['admin', 'editor'].includes(b.role)) target.role = b.role;
+    }
+    if (Array.isArray(b.sites)) target.sites = b.sites.map(String).slice(0, 100);
+    if (b.perms && typeof b.perms === 'object') target.perms = b.perms;
+    if (b.caps && typeof b.caps === 'object') target.caps = Object.assign({}, target.caps, b.caps);
+    try { await A.saveUsers(store.users, store.sha, 'cms: update access for ' + target.email); }
+    catch (e) { return res.status(502).json({ error: e.message }); }
+    return res.status(200).json({ user: A.publicUser(target) });
+  }
+
   if (action === 'delete') {
     if (target.id === me.id) return res.status(400).json({ error: 'You cannot delete your own account.' });
     if (target.role === 'owner' && me.role !== 'owner') return res.status(403).json({ error: 'Only the owner can remove an owner.' });

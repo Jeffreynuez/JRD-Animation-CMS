@@ -1,13 +1,21 @@
 'use strict';
-const { getSite, canWrite, checkAuth, gh } = require('./_lib.js');
+const { getSite, canWrite, gh } = require('./_lib.js');
+const A = require('./_auth.js');
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
-  if (!checkAuth(req)) return res.status(401).json({ error: 'unauthorized' });
+  const me = await A.authUser(req).catch(() => null);
+  if (!me) return res.status(401).json({ error: 'unauthorized' });
   const { file, content, sha, message, site: siteId } = req.body || {};
   const site = await getSite(siteId ? String(siteId) : '');
   if (!site) return res.status(400).json({ error: 'unknown site' });
+  if (!A.siteAllowed(me, site.id)) return res.status(403).json({ error: 'Your account does not have access to this site.' });
   if (!canWrite(site, String(file))) return res.status(400).json({ error: 'file not editable' });
+  if (String(file) === 'theme.json' && !A.can(me, 'canTheme'))
+    return res.status(403).json({ error: 'Theme editing is not enabled for your account.' });
+  const allowed = await A.allowedWriteFiles(me, site);
+  if (allowed !== '*' && !allowed.has(String(file)))
+    return res.status(403).json({ error: 'Your account cannot edit this section. Ask your admin for access.' });
   if (!sha) return res.status(400).json({ error: 'missing sha (reload first)' });
   if (typeof content !== 'object' || content === null) return res.status(400).json({ error: 'content must be a JSON object' });
 
@@ -19,6 +27,16 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'content not serializable' });
   }
   if (text.length > 900000) return res.status(400).json({ error: 'content too large' });
+
+  /* users without publish rights save a DRAFT for admin review instead */
+  if (!A.can(me, 'canPublish')) {
+    const ok = await A.writeDraft(site.id, String(file), {
+      content, author: { id: me.id, email: me.email, name: me.name || '' },
+      savedAt: new Date().toISOString(), baseSha: String(sha),
+    });
+    if (!ok) return res.status(502).json({ error: 'could not store the draft' });
+    return res.status(200).json({ ok: true, draft: true, sha: String(sha) });
+  }
 
   const body = {
     message: String(message || `cms: update ${file}`).slice(0, 200) +

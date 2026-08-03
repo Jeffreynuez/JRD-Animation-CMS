@@ -196,6 +196,15 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
   </div>
 </div>
 
+<div id="draftspanel" class="gate" style="display:none;background:#0d1117f2">
+  <div class="box" style="width:min(640px,94vw);max-height:92vh;overflow:auto">
+    <div class="mono" style="color:#38bdf8">&mdash; Pending changes</div>
+    <h1 style="font-size:20px;margin:8px 0 4px">Awaiting your approval</h1>
+    <div id="draftlist" style="margin:14px 0"></div>
+    <button class="ghost" id="drafts-close" style="width:100%">Close</button>
+  </div>
+</div>
+
 <div id="userspanel" class="gate" style="display:none;background:#0d1117f2">
   <div class="box" style="width:min(720px,94vw);max-height:92vh;overflow:auto">
     <div class="mono" style="color:#38bdf8">&mdash; Users &amp; access</div>
@@ -231,6 +240,7 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
     <span class="spacer"></span>
     <span class="msg" id="msg">Click anything on the page to edit it.</span>
     <span class="mono" id="meLabel" style="color:#64748b;font-size:10px"></span>
+    <button class="ghost" id="draftsBtn" style="display:none" title="Pending changes awaiting your approval">&#128337; Drafts</button>
     <button class="ghost" id="usersBtn" style="display:none" title="Invite and manage users">&#128101; Users</button>
     <button class="primary" id="save">Save &amp; publish</button>
     <button class="ghost" id="logout">Sign out</button>
@@ -363,6 +373,7 @@ async function uploadToCloudinary(file,onmsg){
  return 'CDN:'+j.resource_type+'/upload/v'+j.version+'/'+j.public_id+(j.resource_type==='raw'?'':'.'+j.format);
 }
 function makeUploadBtn(onUrl){
+ if(!canDo('canUpload')){const w0=document.createElement('span');w0.style.display='none';w0.appendChild(document.createElement('button'));return w0;}
  const b=document.createElement('button');b.type='button';b.className='upbtn';b.textContent='⬆ Upload';
  const inp=document.createElement('input');inp.type='file';inp.style.display='none';inp.accept='image/*,video/*';
  b.onclick=()=>inp.click();
@@ -482,7 +493,7 @@ function renderField(fd,obj,markDirty,opts={}){
     const mk=(t,fn,cls)=>{const x=document.createElement('button');x.type='button';x.textContent=t;if(cls)x.className=cls;x.onclick=fn;btns.appendChild(x);return x;};
     const up=makeUploadBtn(url=>{it.src=url;md();draw();});up.firstChild.textContent='⬆ Replace';btns.appendChild(up);
     btns.appendChild(makeCropBtn(()=>it.src,url=>{it.src=url;md();draw();}));
-    mk('✕',()=>{if(confirm('Remove this image?')){arr.splice(idx,1);md();draw();}},'danger');
+    if(canDo('canDelete'))mk('✕',()=>{if(confirm('Remove this image?')){arr.splice(idx,1);md();draw();}},'danger');
     mid.appendChild(btns);row.appendChild(mid);
     grip.addEventListener('dragstart',e=>{dragFrom=idx;row.classList.add('galdrag');try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(idx));e.dataTransfer.setDragImage(row,16,Math.min(40,row.offsetHeight/2));}catch(_){}});
     grip.addEventListener('dragend',()=>{dragFrom=null;[].forEach.call(list.children,r=>{if(r.classList)r.classList.remove('galdrag','galover-t','galover-b');});});
@@ -551,6 +562,7 @@ function renderSidebar(){
  };
  SECTIONS.forEach(s=>{
   if(s.group){const g=document.createElement('div');g.className='group';g.textContent=s.group;sb.appendChild(g);return;}
+  if(!sectionVisible(s))return;
   const grp=sectionGroup(s);
   if(grp&&gc[grp]>=2){
    if(doneGroups.has(grp))return;doneGroups.add(grp);
@@ -645,7 +657,7 @@ function renderBlocks(){
      mk('↑',()=>{if(idx>0){[arr[idx-1],arr[idx]]=[arr[idx],arr[idx-1]];markDirty();draw();}});
      mk('↓',()=>{if(idx<arr.length-1){[arr[idx+1],arr[idx]]=[arr[idx],arr[idx+1]];markDirty();draw();}});
      mk('Duplicate',()=>{arr.splice(idx+1,0,JSON.parse(JSON.stringify(item)));markDirty();draw();});
-     mk('Delete',()=>{if(confirm('Delete "'+t+'"?')){arr.splice(idx,1);vItemRemove(bf,b.path,idx);markDirty();draw();}},'danger');
+     if(canDo('canDelete'))mk('Delete',()=>{if(confirm('Delete "'+t+'"?')){arr.splice(idx,1);vItemRemove(bf,b.path,idx);markDirty();draw();}},'danger');
      headEl.appendChild(btns);
      headEl.onclick=e=>{if(e.target.tagName==='BUTTON')return;card.classList.toggle('open');};
      headEl.addEventListener('dragstart',e=>{dragFrom=idx;card.style.opacity='.4';try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(idx));}catch(_){}});
@@ -815,17 +827,22 @@ async function showMapState(d){
 async function saveAll(){
  const dirty=Object.entries(files).filter(([,st])=>st.dirty);
  if(!dirty.length){setMsg('Nothing to save.');return;}
- if(!confirm('Publish changes to: '+dirty.map(([fn])=>fn).join(', ')+'?\nThe live site rebuilds automatically (~1 min).'))return;
+ const publishing=canDo('canPublish');
+ if(!confirm(publishing
+   ?('Publish changes to: '+dirty.map(([fn])=>fn).join(', ')+'?\nThe live site rebuilds automatically (~1 min).')
+   :('Submit changes to: '+dirty.map(([fn])=>fn).join(', ')+' for review?\nYour admin will approve and publish them.')))return;
+ let drafted=false;
  $('save').disabled=true;
  for(const [fn,st] of dirty){
   setMsg('Committing '+fn+'…');
   const r=await api('/api/save',{method:'POST',body:JSON.stringify({file:fn,content:st.content,sha:st.sha,message:'cms: update '+fn,site:curSite.id})});
   if(r.status===409){setMsg('Conflict on '+fn+' — it changed elsewhere. Sign out/in to reload.','err');$('save').disabled=false;return;}
   if(r.status!==200){setMsg('Save failed on '+fn+': '+(r.json.error||r.status),'err');$('save').disabled=false;return;}
-  st.sha=r.json.sha;st.dirty=false;
+  st.sha=r.json.sha;st.dirty=false;if(r.json.draft)drafted=true;
  }
  $('save').disabled=false;renderSidebar();
- startPublishWatch();
+ if(drafted)setMsg('Sent for review ✓ — your admin will approve and publish.','ok');
+ else startPublishWatch();
 }
 let pubTimer=null;
 function startPublishWatch(){
@@ -856,8 +873,43 @@ function initApp(){
  $('selclose').onclick=closeSel;
  $('save').onclick=saveAll;
  $('logout').onclick=signOut;
+ $('save').textContent=canDo('canPublish')?'Save & publish':'Submit for review';
  renderSidebar();
  loadFrame();
+ refreshDrafts();
+}
+async function refreshDrafts(){
+ const btn=$('draftsBtn');if(!btn)return;
+ if(!meIsAdmin()||!curSite){btn.style.display='none';return;}
+ try{
+  const r=await fetch('/api/drafts?site='+encodeURIComponent(curSite.id),{headers:{'x-admin-key':key()}});
+  const j=await r.json().catch(()=>({}));
+  const n=(j.drafts||[]).length;
+  btn.style.display=n?'':'none';
+  btn.textContent='\u{1F552} Drafts ('+n+')';
+  btn.onclick=()=>showDrafts(j.drafts||[]);
+ }catch(e){btn.style.display='none';}
+}
+function showDrafts(drafts){
+ const wrap=$('draftlist');wrap.innerHTML='';
+ $('draftspanel').style.display='flex';
+ if(!drafts.length){wrap.innerHTML='<p class="msg">No pending changes.</p>';return;}
+ drafts.forEach(d=>{
+  const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 6px;border-bottom:.5px solid #1e293b';
+  row.innerHTML='<span style="flex:1;min-width:0"><b>'+esc(d.file)+'</b><br><span style="color:#64748b;font-size:12px">by '+esc((d.author&&(d.author.name||d.author.email))||'editor')+' \u00b7 '+esc((d.savedAt||'').replace('T',' ').slice(0,16))+'</span></span>';
+  const mkb=(t,cls,fn)=>{const b=document.createElement('button');b.className=cls;b.style.cssText='font-size:11px;padding:6px 10px';b.textContent=t;b.onclick=fn;row.appendChild(b);};
+  mkb('Approve & publish','primary',async()=>{
+   const r=await postJSON('/api/drafts',{action:'approve',site:curSite.id,file:d.file},true);
+   if(r.status===200){$('draftspanel').style.display='none';delete files[d.file];startPublishWatch();refreshDrafts();}
+   else alert(r.json.error||'Failed');
+  });
+  mkb('Reject','ghost',async()=>{
+   if(!confirm('Discard '+d.file+' draft?'))return;
+   const r=await postJSON('/api/drafts',{action:'reject',site:curSite.id,file:d.file},true);
+   if(r.status===200){row.remove();refreshDrafts();}else alert(r.json.error||'Failed');
+  });
+  wrap.appendChild(row);
+ });
 }
 
 /* ============ site picker ============ */
@@ -873,16 +925,19 @@ function renderPicker(){
   const url=document.createElement('div');url.className='sc-url';url.textContent=(s.liveUrl||'').replace(/^https?:\/\//,'');
   const acts=document.createElement('div');acts.className='sc-actions';
   const mk=(t,fn,cls)=>{const x=document.createElement('button');x.textContent=t;if(cls)x.className=cls;x.onclick=e=>{e.stopPropagation();fn();};acts.appendChild(x);};
-  mk('Open',()=>selectSite(s));mk('Edit',()=>openEditSite(s));mk('Delete',()=>deleteSite(s),'danger');
+  mk('Open',()=>selectSite(s));
+  if(meIsAdmin()){mk('Edit',()=>openEditSite(s));mk('Delete',()=>deleteSite(s),'danger');}
   body.appendChild(nm);body.appendChild(url);body.appendChild(acts);
   card.appendChild(thumb);card.appendChild(body);
   card.onclick=e=>{if(e.target.tagName!=='BUTTON')selectSite(s);};
   wrap.appendChild(card);
  });
- const add=document.createElement('div');add.className='sitecard sitecard-add';
- add.innerHTML='<span class="sc-name">+ Add a website</span>';
- add.onclick=openAddSite;
- wrap.appendChild(add);
+ if(meIsAdmin()){
+  const add=document.createElement('div');add.className='sitecard sitecard-add';
+  add.innerHTML='<span class="sc-name">+ Add a website</span>';
+  add.onclick=openAddSite;
+  wrap.appendChild(add);
+ }
 }
 async function showPicker(){
  if(Object.values(files).some(st=>st.dirty)&&!confirm('Discard unsaved changes and switch site?'))return;
@@ -898,13 +953,22 @@ async function selectSite(s){
  if(r.status!==200){alert('Could not load the schema for '+s.label+': '+((r.json&&r.json.error)||r.status));return;}
  compileSchema(r.json.content);
  for(const k in files)delete files[k];        // clear cache when switching repos
- const first=SECTIONS.find(x=>x.id);curId=first?first.id:'home';
+ const first=SECTIONS.find(x=>x.id&&sectionVisible(x));curId=first?first.id:'home';
  $('siteLabel').textContent=s.label;
  $('picker').style.display='none';$('gate').style.display='none';$('app').style.display='block';
  initApp();
 }
 /* ============ auth gate v2 (accounts + sessions) ============ */
 let ME=null;
+const canDo=cap=>{if(!ME)return true;if(ME.role==='owner'||ME.role==='admin')return true;const c=ME.caps||{};if(cap==='canPublish'||cap==='canTheme')return c[cap]===true;return c[cap]!==false;};
+const meIsAdmin=()=>!!ME&&(ME.role==='owner'||ME.role==='admin');
+function sectionVisible(sec){
+ if(!sec||sec.group)return true;
+ if(sec.file==='theme.json'&&!canDo('canTheme'))return false;
+ if(meIsAdmin()||!ME)return true;
+ const p=((ME.perms||{})[curSite&&curSite.id])||{};const secs=p.sections||[];
+ return secs.includes('*')||secs.includes(sec.id);
+}
 async function postJSON(p,body,adminKey){const h={'Content-Type':'application/json'};if(adminKey)h['x-admin-key']=key();const r=await fetch(p,{method:'POST',headers:h,body:JSON.stringify(body)});return{status:r.status,json:await r.json().catch(()=>({}))};}
 function renderMe(){const el2=$('meLabel');if(el2&&ME)el2.textContent=(ME.name||ME.email)+' \u00b7 '+ME.role;const ub=$('usersBtn');if(ub)ub.style.display=(ME&&(ME.role==='owner'||ME.role==='admin'))?'':'none';}
 async function enter(){
@@ -914,7 +978,9 @@ async function enter(){
  $('gate').style.display='none';
  const last=sessionStorage.getItem('jrd-admin-site');
  const found=last&&SITES.find(s=>s.id===last);
- if(found)selectSite(found);else showPicker();
+ if(found)selectSite(found);
+ else if(!meIsAdmin()&&SITES.length===1)selectSite(SITES[0]);
+ else showPicker();
 }
 async function doLogin(){
  $('gate-err').textContent='';
@@ -959,13 +1025,93 @@ async function showUsers(){
    '<span style="flex:1;min-width:0"><b>'+esc(u.name||u.email)+'</b> <span style="color:#64748b;font-size:12px">'+esc(u.email)+'</span></span>'+
    '<span class="mono" style="font-size:10px;color:#38bdf8;text-transform:uppercase">'+esc(u.role)+(u.status==='invited'?' \u00b7 invited':'')+'</span>';
   const mkb=(t,fn)=>{const b=document.createElement('button');b.className='ghost';b.style.cssText='font-size:11px;padding:5px 9px';b.textContent=t;b.onclick=fn;row.appendChild(b);};
+  mkb('Access',()=>openAccess(u,row));
   mkb(u.status==='active'?'Reset link':'Invite link',async()=>{const r2=await postJSON('/api/auth/users',{action:'resend',id:u.id},true);if(r2.status===200){try{await navigator.clipboard.writeText(r2.json.link);}catch(e){}alert((r2.json.emailed?'Email sent. ':'Email not configured \u2014 ')+'link copied to clipboard.');}else alert(r2.json.error||'Failed');});
   if(!(ME&&u.id===ME.id))mkb('Remove',async()=>{if(!confirm('Remove '+u.email+'?'))return;const r2=await postJSON('/api/auth/users',{action:'delete',id:u.id},true);if(r2.status===200)showUsers();else alert(r2.json.error||'Failed');});
   box.appendChild(row);
  });
  if(!(j.users||[]).length)box.innerHTML='<p class="msg">No users yet \u2014 send the first invite below.</p>';
 }
+/* --- per-user access editor (sites, sections, capabilities, presets) --- */
+const PRESETS={
+ 'site-admin':{sections:'*',caps:{canPublish:true,canDelete:true,canUpload:true,canTheme:true}},
+ 'editor':{sections:'*',caps:{canPublish:true,canDelete:true,canUpload:true,canTheme:false}},
+ 'contributor':{sections:'*',caps:{canPublish:false,canDelete:false,canUpload:true,canTheme:false}},
+};
+async function siteSections(siteId){
+ const site=SITES.find(x=>x.id===siteId);if(!site)return[];
+ const r=await api('/api/load?file='+encodeURIComponent(site.schema||'_schema.json')+'&site='+encodeURIComponent(siteId));
+ if(r.status!==200)return[];
+ return (r.json.content.sections||[]).filter(x=>!x.group&&x.id).map(x=>({id:x.id,label:x.label||x.id}));
+}
+function openAccess(u,row){
+ const old=row.nextElementSibling;
+ if(old&&old.classList.contains('accessbox')){old.remove();return;}
+ document.querySelectorAll('.accessbox').forEach(x=>x.remove());
+ const box=document.createElement('div');box.className='accessbox';
+ box.style.cssText='background:#0b1220;border:1px solid #1e293b;border-radius:10px;padding:14px;margin:6px 0 12px';
+ const st={sites:(u.sites||[]).slice(),perms:JSON.parse(JSON.stringify(u.perms||{})),caps:Object.assign({canPublish:false,canDelete:true,canUpload:true,canTheme:false},u.caps||{})};
+ const h=t=>{const x=document.createElement('div');x.className='mono';x.style.cssText='font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#38bdf8;margin:10px 0 6px';x.textContent=t;return x;};
+ const cb=(label,checked,fn)=>{const l=document.createElement('label');l.style.cssText='display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0;cursor:pointer';const c=document.createElement('input');c.type='checkbox';c.checked=checked;c.onchange=()=>fn(c.checked);l.appendChild(c);l.appendChild(document.createTextNode(label));return l;};
+
+ /* presets */
+ box.appendChild(h('Quick presets (applies to checked sites)'));
+ const prow=document.createElement('div');prow.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
+ [['Site admin','site-admin'],['Editor','editor'],['Contributor','contributor']].forEach(([lab,pid])=>{
+  const b=document.createElement('button');b.className='ghost';b.style.cssText='font-size:11px;padding:6px 10px';b.textContent=lab;
+  b.onclick=()=>{const p=PRESETS[pid];st.caps=Object.assign({},p.caps);st.sites.forEach(sid=>{if(sid!=='*')st.perms[sid]={sections:['*']};});draw();};
+  prow.appendChild(b);
+ });
+ box.appendChild(prow);
+
+ const body=document.createElement('div');box.appendChild(body);
+ async function draw(){
+  body.innerHTML='';
+  body.appendChild(h('Sites this user can open'));
+  body.appendChild(cb('All sites (including future ones)',st.sites.includes('*'),v=>{st.sites=v?['*']:[];draw();}));
+  if(!st.sites.includes('*'))SITES.forEach(sM=>{
+   body.appendChild(cb(sM.label,st.sites.includes(sM.id),v=>{
+    if(v){st.sites.push(sM.id);if(!st.perms[sM.id])st.perms[sM.id]={sections:['*']};}
+    else{st.sites=st.sites.filter(x=>x!==sM.id);delete st.perms[sM.id];}
+    draw();
+   }));
+  });
+  for(const sid of st.sites.filter(x=>x!=='*')){
+   const sM=SITES.find(x=>x.id===sid);if(!sM)continue;
+   body.appendChild(h('Sections \u00b7 '+sM.label));
+   const p=st.perms[sid]||(st.perms[sid]={sections:['*']});
+   const all=p.sections.includes('*');
+   body.appendChild(cb('All sections',all,v=>{p.sections=v?['*']:[];draw();}));
+   if(!all){
+    const secs=await siteSections(sid);
+    secs.forEach(sec=>{
+     body.appendChild(cb(sec.label,p.sections.includes(sec.id),v=>{
+      if(v)p.sections.push(sec.id);else p.sections=p.sections.filter(x=>x!==sec.id);
+     }));
+    });
+   }
+  }
+  body.appendChild(h('Capabilities'));
+  body.appendChild(cb('Can publish directly (off = saves go to your review queue)',st.caps.canPublish===true,v=>{st.caps.canPublish=v;}));
+  body.appendChild(cb('Can delete items',st.caps.canDelete!==false,v=>{st.caps.canDelete=v;}));
+  body.appendChild(cb('Can upload media',st.caps.canUpload!==false,v=>{st.caps.canUpload=v;}));
+  body.appendChild(cb('Can edit theme / design tokens',st.caps.canTheme===true,v=>{st.caps.canTheme=v;}));
+ }
+ await0(draw());
+
+ const foot=document.createElement('div');foot.style.cssText='display:flex;gap:10px;margin-top:12px';
+ const sv=document.createElement('button');sv.className='primary';sv.style.flex='1';sv.textContent='Save access';
+ sv.onclick=async()=>{
+  const r=await postJSON('/api/auth/users',{action:'update',id:u.id,sites:st.sites,perms:st.perms,caps:st.caps},true);
+  if(r.status===200){box.remove();showUsers();}else alert(r.json.error||'Failed');
+ };
+ const cc=document.createElement('button');cc.className='ghost';cc.textContent='Cancel';cc.onclick=()=>box.remove();
+ foot.appendChild(sv);foot.appendChild(cc);box.appendChild(foot);
+ row.parentNode.insertBefore(box,row.nextSibling);
+}
+function await0(p){if(p&&p.catch)p.catch(()=>{});}
 $('users-close').onclick=()=>{$('userspanel').style.display='none';};
+$('drafts-close').onclick=()=>{$('draftspanel').style.display='none';};
 $('usersBtn').onclick=showUsers;
 $('inv-send').onclick=async()=>{
  $('inv-err').textContent='';

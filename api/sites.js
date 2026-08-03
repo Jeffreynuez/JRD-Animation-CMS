@@ -42,11 +42,15 @@ const writeErr = (res, wr) => wr.status === 409
   : res.status(502).json({ error: 'Failed to write registry: ' + (wr.json && wr.json.message) });
 
 module.exports = async (req, res) => {
-  if (!checkAuth(req)) return res.status(401).json({ error: 'unauthorized' });
+  const A = require('./_auth.js');
+  const me = await A.authUser(req).catch(() => null);
+  if (!me) return res.status(401).json({ error: 'unauthorized' });
   const reg = await getRegistry();
 
-  if (!req.method || req.method === 'GET') return res.status(200).json({ sites: reg.sites.map(full) });
+  if (!req.method || req.method === 'GET')
+    return res.status(200).json({ sites: reg.sites.filter(s => A.siteAllowed(me, s.id)).map(full) });
   if (req.method !== 'POST') return res.status(405).json({ error: 'GET or POST only' });
+  if (!A.isAdmin(me)) return res.status(403).json({ error: 'Admins only.' });
 
   const op = (req.body && req.body.op) || 'add';
 

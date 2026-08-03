@@ -1,6 +1,6 @@
 'use strict';
 const crypto = require('crypto');
-const { checkAuth } = require('./_lib.js');
+const A = require('./_auth.js');
 
 /* The cloud a managed site delivers from is declared in its own
    data/_schema.json ("cloudName"), and the admin passes it here. The signature
@@ -13,7 +13,9 @@ const DEFAULT_CLOUD = process.env.CLOUDINARY_CLOUD_NAME || ALLOWED[0];
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
-  if (!checkAuth(req)) return res.status(401).json({ error: 'unauthorized' });
+  const me = await A.authUser(req).catch(() => null);
+  if (!me) return res.status(401).json({ error: 'unauthorized' });
+  if (!A.can(me, 'canUpload')) return res.status(403).json({ error: 'Uploads are not enabled for your account.' });
 
   const apiKey = process.env.CLOUDINARY_API_KEY, secret = process.env.CLOUDINARY_API_SECRET;
   if (!apiKey || !secret) return res.status(501).json({ error: 'Cloudinary env vars not configured' });
