@@ -188,7 +188,10 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
     <div class="mono" style="color:#38bdf8">— Choose a site</div>
     <h1 style="margin-bottom:18px">Your websites</h1>
     <div id="sitelist"></div>
-    <button class="ghost" id="picker-logout" style="margin-top:18px">Sign out</button>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="ghost" id="picker-users" style="display:none">&#128101; Manage users</button>
+      <button class="ghost" id="picker-logout">Sign out</button>
+    </div>
   </div>
 </div>
 
@@ -992,7 +995,7 @@ function sectionVisible(sec){
  return secs.includes('*')||secs.includes(sec.id);
 }
 async function postJSON(p,body,adminKey){const h={'Content-Type':'application/json'};if(adminKey)h['x-admin-key']=key();const r=await fetch(p,{method:'POST',headers:h,body:JSON.stringify(body)});return{status:r.status,json:await r.json().catch(()=>({}))};}
-function renderMe(){const el2=$('meLabel');if(el2&&ME)el2.textContent=(ME.name||ME.email)+' \u00b7 '+ME.role;const ub=$('usersBtn');if(ub)ub.style.display=(ME&&(ME.role==='owner'||ME.role==='admin'))?'':'none';}
+function renderMe(){const el2=$('meLabel');if(el2&&ME)el2.textContent=(ME.name||ME.email)+' · '+ME.role;const adm=(ME&&(ME.role==='owner'||ME.role==='admin'));const ub=$('usersBtn');if(ub)ub.style.display=adm?'':'none';const pu=$('picker-users');if(pu)pu.style.display=adm?'':'none';}
 async function enter(){
  const r=await api('/api/sites');
  if(r.status!==200){$('gate').style.display='flex';$('gate-err').textContent='Signed in, but sites failed to load: '+(r.json.error||r.status);return;}
@@ -1188,6 +1191,7 @@ $('secBtn').onclick=async()=>{
  const orig=done.onclick;
  /* backup-done handler set inside startEnroll -> after it, close the gate back to the app */
 }
+$('picker-users').onclick=showUsers;
 $('users-close').onclick=()=>{$('userspanel').style.display='none';};
 $('drafts-close').onclick=()=>{$('draftspanel').style.display='none';};
 $('usersBtn').onclick=showUsers;
