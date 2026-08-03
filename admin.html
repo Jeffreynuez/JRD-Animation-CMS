@@ -138,11 +138,27 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 <body>
 <div id="gate" class="gate">
   <div class="box">
-    <div class="mono" style="color:#38bdf8">— JRD SITE EDITOR</div>
-    <h1>Sign in</h1>
-    <input id="pw" type="password" placeholder="Admin password" autocomplete="current-password">
-    <div class="err" id="gate-err"></div>
-    <button class="primary" id="login" style="width:100%">Enter</button>
+    <div class="mono" style="color:#38bdf8">&mdash; JRD SITE EDITOR</div>
+    <h1 id="gate-title">Sign in</h1>
+    <div id="gate-login">
+      <input id="em" type="email" placeholder="Email" autocomplete="email">
+      <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+      <div id="boot-extra" style="display:none">
+        <input id="bname" type="text" placeholder="Your name" autocomplete="name">
+        <input id="bkey" type="password" placeholder="Legacy admin key (first run only)">
+      </div>
+      <div class="err" id="gate-err"></div>
+      <button class="primary" id="login" style="width:100%">Enter</button>
+      <button class="ghost" id="forgot" style="width:100%;margin-top:8px">Forgot password</button>
+      <button class="ghost" id="legacy" style="width:100%;margin-top:4px;font-size:11px;opacity:.65">Use legacy admin key</button>
+    </div>
+    <div id="gate-setpw" style="display:none">
+      <p class="as-hint">Choose a password for your account (at least 8 characters).</p>
+      <input id="npw" type="password" placeholder="New password" autocomplete="new-password">
+      <input id="npw2" type="password" placeholder="Repeat password" autocomplete="new-password">
+      <div class="err" id="setpw-err"></div>
+      <button class="primary" id="setpw-go" style="width:100%">Set password &amp; sign in</button>
+    </div>
   </div>
 </div>
 
@@ -180,6 +196,28 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
   </div>
 </div>
 
+<div id="userspanel" class="gate" style="display:none;background:#0d1117f2">
+  <div class="box" style="width:min(720px,94vw);max-height:92vh;overflow:auto">
+    <div class="mono" style="color:#38bdf8">&mdash; Users &amp; access</div>
+    <h1 style="font-size:20px;margin:8px 0 4px">Team &amp; clients</h1>
+    <p class="as-hint">Invite people by email &mdash; they set their own password from the link. Per-site and per-section permissions arrive in the next update; for now anyone invited can edit all sites.</p>
+    <div id="userlist" style="margin:14px 0"></div>
+    <div style="border-top:.5px solid #263042;padding-top:14px">
+      <label class="as-l">Invite by email</label>
+      <input id="inv-email" type="email" placeholder="client@email.com" autocomplete="off">
+      <label class="as-l">Name</label>
+      <input id="inv-name" placeholder="Client name" autocomplete="off">
+      <label class="as-l">Role</label>
+      <select id="inv-role"><option value="editor">Editor &mdash; edits site content</option><option value="admin">Admin &mdash; can also manage users</option></select>
+      <div class="err" id="inv-err"></div>
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button class="primary" id="inv-send" style="flex:1">Send invite</button>
+        <button class="ghost" id="users-close">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="app" style="display:none">
   <header>
     <span class="logo">JRD</span><span class="mono">EDITOR</span>
@@ -192,6 +230,8 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
     <button class="ghost" id="viewLive" title="Open the published page in a new tab">↗ View live</button>
     <span class="spacer"></span>
     <span class="msg" id="msg">Click anything on the page to edit it.</span>
+    <span class="mono" id="meLabel" style="color:#64748b;font-size:10px"></span>
+    <button class="ghost" id="usersBtn" style="display:none" title="Invite and manage users">&#128101; Users</button>
     <button class="primary" id="save">Save &amp; publish</button>
     <button class="ghost" id="logout">Sign out</button>
   </header>
@@ -815,7 +855,7 @@ function initApp(){
  $('switchSite').onclick=showPicker;
  $('selclose').onclick=closeSel;
  $('save').onclick=saveAll;
- $('logout').onclick=()=>{sessionStorage.removeItem('jrd-admin-key');sessionStorage.removeItem('jrd-admin-site');location.reload();};
+ $('logout').onclick=signOut;
  renderSidebar();
  loadFrame();
 }
@@ -863,22 +903,89 @@ async function selectSite(s){
  $('picker').style.display='none';$('gate').style.display='none';$('app').style.display='block';
  initApp();
 }
-/* ============ gate ============ */
-async function tryLogin(pw){
- sessionStorage.setItem('jrd-admin-key',pw);
+/* ============ auth gate v2 (accounts + sessions) ============ */
+let ME=null;
+async function postJSON(p,body,adminKey){const h={'Content-Type':'application/json'};if(adminKey)h['x-admin-key']=key();const r=await fetch(p,{method:'POST',headers:h,body:JSON.stringify(body)});return{status:r.status,json:await r.json().catch(()=>({}))};}
+function renderMe(){const el2=$('meLabel');if(el2&&ME)el2.textContent=(ME.name||ME.email)+' \u00b7 '+ME.role;const ub=$('usersBtn');if(ub)ub.style.display=(ME&&(ME.role==='owner'||ME.role==='admin'))?'':'none';}
+async function enter(){
  const r=await api('/api/sites');
- if(r.status===200){
-  SITES=(r.json&&r.json.sites)||[];
-  $('gate').style.display='none';
-  const last=sessionStorage.getItem('jrd-admin-site');
-  const found=last&&SITES.find(s=>s.id===last);
-  if(found)selectSite(found);else showPicker();
-  return true;
- }
- sessionStorage.removeItem('jrd-admin-key');return false;
+ if(r.status!==200){$('gate').style.display='flex';$('gate-err').textContent='Signed in, but sites failed to load: '+(r.json.error||r.status);return;}
+ SITES=(r.json&&r.json.sites)||[];
+ $('gate').style.display='none';
+ const last=sessionStorage.getItem('jrd-admin-site');
+ const found=last&&SITES.find(s=>s.id===last);
+ if(found)selectSite(found);else showPicker();
 }
-$('login').onclick=async()=>{$('gate-err').textContent='';if(!await tryLogin($('pw').value))$('gate-err').textContent='Wrong password (or server not configured).';};
-$('picker-logout').onclick=()=>{sessionStorage.removeItem('jrd-admin-key');sessionStorage.removeItem('jrd-admin-site');location.reload();};
+async function doLogin(){
+ $('gate-err').textContent='';
+ const body={email:$('em').value,password:$('pw').value};
+ if($('boot-extra').style.display!=='none'){body.name=$('bname').value;body.adminKey=$('bkey').value;}
+ const r=await postJSON('/api/auth/login',body);
+ if(r.status===200){ME=r.json.user;renderMe();enter();return;}
+ if(r.status===409&&r.json.error==='no-users'){$('boot-extra').style.display='block';$('gate-title').textContent='Create the owner account';$('gate-err').textContent='First run \u2014 add your name and the legacy admin key to create the owner account.';return;}
+ $('gate-err').textContent=r.json.error||('Login failed ('+r.status+')');
+}
+$('login').onclick=doLogin;
+$('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+$('forgot').onclick=async()=>{const em=$('em').value.trim();if(!em){$('gate-err').textContent='Type your email above first, then click Forgot password.';return;}const r=await postJSON('/api/auth/reset',{email:em});$('gate-err').textContent=r.json.note||r.json.error||'Check your email.';};
+$('legacy').onclick=async()=>{const k=prompt('Legacy admin key:');if(!k)return;sessionStorage.setItem('jrd-admin-key',k);const r=await api('/api/sites');if(r.status===200){SITES=(r.json&&r.json.sites)||[];ME={id:'__legacy__',name:'Admin',email:'(legacy key)',role:'owner'};renderMe();$('gate').style.display='none';showPicker();}else{sessionStorage.removeItem('jrd-admin-key');$('gate-err').textContent='That key was not accepted.';}};
+async function signOut(){try{await postJSON('/api/auth/logout',{});}catch(e){}sessionStorage.removeItem('jrd-admin-key');sessionStorage.removeItem('jrd-admin-site');location.reload();}
+$('picker-logout').onclick=signOut;
+
+/* invite / reset links land here with ?setpw=TOKEN */
+const SETPW_TOKEN=new URLSearchParams(location.search).get('setpw');
+if(SETPW_TOKEN){$('gate-login').style.display='none';$('gate-setpw').style.display='block';$('gate-title').textContent='Welcome';}
+$('setpw-go').onclick=async()=>{
+ $('setpw-err').textContent='';
+ if($('npw').value.length<8){$('setpw-err').textContent='At least 8 characters.';return;}
+ if($('npw').value!==$('npw2').value){$('setpw-err').textContent='Passwords do not match.';return;}
+ const r=await postJSON('/api/auth/set-password',{token:SETPW_TOKEN,password:$('npw').value});
+ if(r.status===200){ME=r.json.user;renderMe();history.replaceState(null,'',location.pathname);enter();}
+ else $('setpw-err').textContent=r.json.error||('Failed ('+r.status+')');
+};
+
+/* ============ users panel (owner/admin) ============ */
+async function showUsers(){
+ $('userspanel').style.display='flex';
+ const box=$('userlist');box.innerHTML='<p class="msg">Loading\u2026</p>';
+ const r=await fetch('/api/auth/users',{headers:{'x-admin-key':key()}});
+ const j=await r.json().catch(()=>({}));
+ if(r.status!==200){box.innerHTML='<p class="msg err">'+esc(j.error||r.status)+'</p>';return;}
+ box.innerHTML='';
+ (j.users||[]).forEach(u=>{
+  const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:.5px solid #1e293b';
+  const dot=u.status==='active'?'#22c55e':'#eab308';
+  row.innerHTML='<span style="width:8px;height:8px;border-radius:50%;background:'+dot+';flex:0 0 auto" title="'+esc(u.status)+'"></span>'+
+   '<span style="flex:1;min-width:0"><b>'+esc(u.name||u.email)+'</b> <span style="color:#64748b;font-size:12px">'+esc(u.email)+'</span></span>'+
+   '<span class="mono" style="font-size:10px;color:#38bdf8;text-transform:uppercase">'+esc(u.role)+(u.status==='invited'?' \u00b7 invited':'')+'</span>';
+  const mkb=(t,fn)=>{const b=document.createElement('button');b.className='ghost';b.style.cssText='font-size:11px;padding:5px 9px';b.textContent=t;b.onclick=fn;row.appendChild(b);};
+  mkb(u.status==='active'?'Reset link':'Invite link',async()=>{const r2=await postJSON('/api/auth/users',{action:'resend',id:u.id},true);if(r2.status===200){try{await navigator.clipboard.writeText(r2.json.link);}catch(e){}alert((r2.json.emailed?'Email sent. ':'Email not configured \u2014 ')+'link copied to clipboard.');}else alert(r2.json.error||'Failed');});
+  if(!(ME&&u.id===ME.id))mkb('Remove',async()=>{if(!confirm('Remove '+u.email+'?'))return;const r2=await postJSON('/api/auth/users',{action:'delete',id:u.id},true);if(r2.status===200)showUsers();else alert(r2.json.error||'Failed');});
+  box.appendChild(row);
+ });
+ if(!(j.users||[]).length)box.innerHTML='<p class="msg">No users yet \u2014 send the first invite below.</p>';
+}
+$('users-close').onclick=()=>{$('userspanel').style.display='none';};
+$('usersBtn').onclick=showUsers;
+$('inv-send').onclick=async()=>{
+ $('inv-err').textContent='';
+ const r=await postJSON('/api/auth/users',{action:'invite',email:$('inv-email').value,name:$('inv-name').value,role:$('inv-role').value},true);
+ if(r.status===200){$('inv-email').value='';$('inv-name').value='';try{await navigator.clipboard.writeText(r.json.link);}catch(e){}alert((r.json.emailed?'Invite email sent! Also ':'Email not configured \u2014 ')+'copied the invite link to your clipboard to share directly.');showUsers();}
+ else $('inv-err').textContent=r.json.error||('Failed ('+r.status+')');
+};
+
+/* ============ boot: resume an existing session ============ */
+(async()=>{
+ if(SETPW_TOKEN)return;
+ try{
+  const r=await fetch('/api/auth/me');
+  if(r.status===200){const j=await r.json();ME=j.user;renderMe();enter();return;}
+ }catch(e){}
+ if(key()){
+  const r2=await api('/api/sites');
+  if(r2.status===200){SITES=(r2.json&&r2.json.sites)||[];ME={id:'__legacy__',name:'Admin',email:'(legacy key)',role:'owner'};renderMe();$('gate').style.display='none';const last=sessionStorage.getItem('jrd-admin-site');const found=last&&SITES.find(s=>s.id===last);if(found)selectSite(found);else showPicker();}
+ }
+})();
 /* ============ add-site form ============ */
 let addMode='add';
 const slugify=s=>String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
@@ -935,7 +1042,7 @@ $('as-label').addEventListener('blur',()=>{if(!$('as-id').value)$('as-id').value
 $('as-files').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey))submitAddSite();});
 $('pw').addEventListener('keydown',e=>{if(e.key==='Enter')$('login').click();});
 window.addEventListener('beforeunload',e=>{if(Object.values(files).some(s=>s.dirty)){e.preventDefault();e.returnValue='';}});
-if(key())tryLogin(key());
+/* session resume handled by the auth-gate boot block above */
 </script>
 </body>
 </html>

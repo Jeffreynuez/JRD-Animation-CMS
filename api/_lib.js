@@ -49,13 +49,20 @@ const canRead = (site, file) => ALWAYS_READ.includes(file) || (!!site && Array.i
 const canWrite = (site, file) => !!site && Array.isArray(site.files) && site.files.includes(file);
 
 function checkAuth(req) {
+  /* 1. legacy shared admin key (kept during the migration to accounts) */
   const key = req.headers['x-admin-key'] || '';
   const pass = process.env.ADMIN_PASSWORD || '';
-  if (!key || !pass) return false;
-  const a = Buffer.from(String(key));
-  const b = Buffer.from(String(pass));
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
+  if (key && pass) {
+    const a = Buffer.from(String(key));
+    const b = Buffer.from(String(pass));
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) return true;
+  }
+  /* 2. account session cookie (lazy require avoids a circular import at load) */
+  try {
+    const s = require('./_auth.js').sessionFromReq(req);
+    if (s && s.purpose === 'session' && s.uid) return true;
+  } catch (e) { /* auth not configured yet */ }
+  return false;
 }
 
 async function gh(path, opts = {}) {
