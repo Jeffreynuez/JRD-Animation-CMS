@@ -133,6 +133,19 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 .dropzone-on{outline:2px dashed var(--cyan);outline-offset:4px;border-radius:10px}
 .galover-file{outline:2px solid var(--cyan);outline-offset:2px}
 .thumbwrap{display:inline-flex}
+/* users & access */
+.gate .box select{width:100%;background:#0b1220;border:1px solid #263042;color:#e2e8f0;border-radius:8px;padding:10px 12px;font-size:14px;margin:4px 0 10px}
+.accessbox{background:#0b1220;border:1px solid #263042;border-radius:12px;padding:16px 18px;margin:8px 0 14px}
+.acc-h{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#38bdf8;margin:16px 0 8px}
+.accessbox .acc-h:first-child{margin-top:0}
+.uchk{display:flex;align-items:center;gap:10px;font-size:13px;padding:5px 2px;cursor:pointer;color:#e2e8f0;border-radius:6px}
+.uchk:hover{background:rgba(56,189,248,.06)}
+.uchk input{width:16px !important;height:16px;margin:0;flex:0 0 auto;accent-color:#38bdf8;cursor:pointer}
+.uchk span{line-height:1.4}
+.acc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0 18px}
+.acc-presets{display:flex;gap:8px;flex-wrap:wrap}
+.acc-presets button{font-size:11px;padding:7px 12px}
+.acc-foot{display:flex;gap:10px;margin-top:16px;padding-top:14px;border-top:.5px solid #1e293b}
 </style>
 </head>
 <body>
@@ -233,7 +246,7 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
   <div class="box" style="width:min(720px,94vw);max-height:92vh;overflow:auto">
     <div class="mono" style="color:#38bdf8">&mdash; Users &amp; access</div>
     <h1 style="font-size:20px;margin:8px 0 4px">Team &amp; clients</h1>
-    <p class="as-hint">Invite people by email &mdash; they set their own password from the link. Per-site and per-section permissions arrive in the next update; for now anyone invited can edit all sites.</p>
+    <p class="as-hint">Invite people by email &mdash; they set their own password from the link. New users can access <b>nothing</b> until you open their <b>Access</b> sheet and grant sites, sections, and capabilities.</p>
     <div id="userlist" style="margin:14px 0"></div>
     <div style="border-top:.5px solid #263042;padding-top:14px">
       <label class="as-l">Invite by email</label>
@@ -1103,14 +1116,14 @@ function openAccess(u,row){
  if(old&&old.classList.contains('accessbox')){old.remove();return;}
  document.querySelectorAll('.accessbox').forEach(x=>x.remove());
  const box=document.createElement('div');box.className='accessbox';
- box.style.cssText='background:#0b1220;border:1px solid #1e293b;border-radius:10px;padding:14px;margin:6px 0 12px';
  const st={sites:(u.sites||[]).slice(),perms:JSON.parse(JSON.stringify(u.perms||{})),caps:Object.assign({canPublish:false,canDelete:true,canUpload:true,canTheme:false},u.caps||{}),req:u.totpRequired===true};
- const h=t=>{const x=document.createElement('div');x.className='mono';x.style.cssText='font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#38bdf8;margin:10px 0 6px';x.textContent=t;return x;};
- const cb=(label,checked,fn)=>{const l=document.createElement('label');l.style.cssText='display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0;cursor:pointer';const c=document.createElement('input');c.type='checkbox';c.checked=checked;c.onchange=()=>fn(c.checked);l.appendChild(c);l.appendChild(document.createTextNode(label));return l;};
+ const h=t=>{const x=document.createElement('div');x.className='acc-h';x.textContent=t;return x;};
+ const cb=(label,checked,fn)=>{const l=document.createElement('label');l.className='uchk';const c=document.createElement('input');c.type='checkbox';c.checked=checked;c.onchange=()=>fn(c.checked);const sp=document.createElement('span');sp.textContent=label;l.appendChild(c);l.appendChild(sp);return l;};
+ const grid=()=>{const g=document.createElement('div');g.className='acc-grid';return g;};
 
  /* presets */
  box.appendChild(h('Quick presets (applies to checked sites)'));
- const prow=document.createElement('div');prow.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
+ const prow=document.createElement('div');prow.className='acc-presets';
  [['Site admin','site-admin'],['Editor','editor'],['Contributor','contributor']].forEach(([lab,pid])=>{
   const b=document.createElement('button');b.className='ghost';b.style.cssText='font-size:11px;padding:6px 10px';b.textContent=lab;
   b.onclick=()=>{const p=PRESETS[pid];st.caps=Object.assign({},p.caps);st.sites.forEach(sid=>{if(sid!=='*')st.perms[sid]={sections:['*']};});draw();};
@@ -1123,13 +1136,17 @@ function openAccess(u,row){
   body.innerHTML='';
   body.appendChild(h('Sites this user can open'));
   body.appendChild(cb('All sites (including future ones)',st.sites.includes('*'),v=>{st.sites=v?['*']:[];draw();}));
-  if(!st.sites.includes('*'))SITES.forEach(sM=>{
-   body.appendChild(cb(sM.label,st.sites.includes(sM.id),v=>{
-    if(v){st.sites.push(sM.id);if(!st.perms[sM.id])st.perms[sM.id]={sections:['*']};}
-    else{st.sites=st.sites.filter(x=>x!==sM.id);delete st.perms[sM.id];}
-    draw();
-   }));
-  });
+  if(!st.sites.includes('*')){
+   const sg=grid();
+   SITES.forEach(sM=>{
+    sg.appendChild(cb(sM.label,st.sites.includes(sM.id),v=>{
+     if(v){st.sites.push(sM.id);if(!st.perms[sM.id])st.perms[sM.id]={sections:['*']};}
+     else{st.sites=st.sites.filter(x=>x!==sM.id);delete st.perms[sM.id];}
+     draw();
+    }));
+   });
+   body.appendChild(sg);
+  }
   for(const sid of st.sites.filter(x=>x!=='*')){
    const sM=SITES.find(x=>x.id===sid);if(!sM)continue;
    body.appendChild(h('Sections \u00b7 '+sM.label));
@@ -1138,22 +1155,29 @@ function openAccess(u,row){
    body.appendChild(cb('All sections',all,v=>{p.sections=v?['*']:[];draw();}));
    if(!all){
     const secs=await siteSections(sid);
+    const gg=grid();
     secs.forEach(sec=>{
-     body.appendChild(cb(sec.label,p.sections.includes(sec.id),v=>{
+     gg.appendChild(cb(sec.label,p.sections.includes(sec.id),v=>{
       if(v)p.sections.push(sec.id);else p.sections=p.sections.filter(x=>x!==sec.id);
      }));
     });
+    body.appendChild(gg);
    }
   }
   body.appendChild(h('Capabilities'));
-  body.appendChild(cb('Can publish directly (off = saves go to your review queue)',st.caps.canPublish===true,v=>{st.caps.canPublish=v;}));
-  body.appendChild(cb('Can delete items',st.caps.canDelete!==false,v=>{st.caps.canDelete=v;}));
-  body.appendChild(cb('Can upload media',st.caps.canUpload!==false,v=>{st.caps.canUpload=v;}));
-  body.appendChild(cb('Can edit theme / design tokens',st.caps.canTheme===true,v=>{st.caps.canTheme=v;}));
+  const cg=grid();
+  cg.appendChild(cb('Publish directly',st.caps.canPublish===true,v=>{st.caps.canPublish=v;}));
+  cg.appendChild(cb('Delete items',st.caps.canDelete!==false,v=>{st.caps.canDelete=v;}));
+  cg.appendChild(cb('Upload media',st.caps.canUpload!==false,v=>{st.caps.canUpload=v;}));
+  cg.appendChild(cb('Edit theme / design tokens',st.caps.canTheme===true,v=>{st.caps.canTheme=v;}));
+  body.appendChild(cg);
+  const note=document.createElement('p');note.className='msg';note.style.cssText='margin:6px 2px 0;font-size:11px;color:#64748b';
+  note.textContent='Publish off = their saves wait in your review queue (Drafts).';
+  body.appendChild(note);
   body.appendChild(h('Security'));
   body.appendChild(cb('Require two-factor authentication (they must enroll at next sign-in)',st.req===true,v=>{st.req=v;}));
   if(u.twoFactor){
-   const rb=document.createElement('button');rb.className='ghost';rb.style.cssText='font-size:11px;padding:6px 10px;margin-top:4px';rb.textContent='Reset their 2FA (lost phone)';
+   const rb=document.createElement('button');rb.className='ghost';rb.style.cssText='font-size:11px;padding:6px 10px;margin-top:6px';rb.textContent='Reset their 2FA (lost phone)';
    rb.onclick=async()=>{if(!confirm('Remove '+u.email+"'s authenticator? They can sign in with just their password until they re-enroll."))return;
     const r=await postJSON('/api/auth/users',{action:'update',id:u.id,totpReset:true},true);
     if(r.status===200){box.remove();showUsers();}else alert(r.json.error||'Failed');};
@@ -1162,7 +1186,7 @@ function openAccess(u,row){
  }
  await0(draw());
 
- const foot=document.createElement('div');foot.style.cssText='display:flex;gap:10px;margin-top:12px';
+ const foot=document.createElement('div');foot.className='acc-foot';
  const sv=document.createElement('button');sv.className='primary';sv.style.flex='1';sv.textContent='Save access';
  sv.onclick=async()=>{
   const r=await postJSON('/api/auth/users',{action:'update',id:u.id,sites:st.sites,perms:st.perms,caps:st.caps,totpRequired:st.req},true);
