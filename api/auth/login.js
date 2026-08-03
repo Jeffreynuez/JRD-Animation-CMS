@@ -44,6 +44,24 @@ module.exports = async (req, res) => {
     A.recordFail(tKey);
     return res.status(401).json({ error: 'Invalid email or password.' });
   }
+  /* ---- two-factor ---- */
+  if (u.totp && u.totp.enabled) {
+    if (!b.code && !b.backup) { A.recordOk(tKey); return res.status(200).json({ totp: true }); }
+    const okCode = b.code && A.totpCheck(u.totp.secret, b.code);
+    const okBackup = b.backup && A.useBackupCode(u, b.backup);
+    if (!okCode && !okBackup) {
+      A.recordFail(tKey);
+      return res.status(401).json({ error: b.backup ? 'Backup code not recognized (each works once).' : 'That code did not match.' , totp: true });
+    }
+    if (okBackup) {
+      try { await A.saveUsers(store.users, store.sha, 'cms: backup code used by ' + u.email); } catch (e) { /* non-fatal */ }
+    }
+  } else if (u.totpRequired) {
+    /* admin requires 2FA on this account but it is not enrolled yet */
+    A.recordOk(tKey);
+    return res.status(200).json({ enrollRequired: true, preToken: A.signToken({ uid: u.id, purpose: 'totp-enroll' }, 600) });
+  }
+
   A.recordOk(tKey);
   A.setSessionCookie(res, A.signToken({ uid: u.id, role: u.role, purpose: 'session' }, A.SESSION_DAYS * 86400));
   res.status(200).json({ user: A.publicUser(u) });

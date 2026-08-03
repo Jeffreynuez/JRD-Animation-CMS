@@ -152,6 +152,27 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
       <button class="ghost" id="forgot" style="width:100%;margin-top:8px">Forgot password</button>
       <button class="ghost" id="legacy" style="width:100%;margin-top:4px;font-size:11px;opacity:.65">Use legacy admin key</button>
     </div>
+    <div id="gate-totp" style="display:none">
+      <p class="as-hint">Enter the 6-digit code from your authenticator app.</p>
+      <input id="totp-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" style="text-align:center;letter-spacing:.3em;font-size:18px">
+      <div class="err" id="totp-err"></div>
+      <button class="primary" id="totp-go" style="width:100%">Verify</button>
+      <button class="ghost" id="totp-backup" style="width:100%;margin-top:8px;font-size:11px;opacity:.7">Use a backup code instead</button>
+    </div>
+    <div id="gate-enroll" style="display:none">
+      <p class="as-hint">Your admin requires two-factor authentication on this account. Add it to your authenticator app (Google Authenticator, 1Password, Authy&hellip;):</p>
+      <p style="margin:8px 0 4px"><a id="enroll-link" href="#" style="color:#38bdf8;font-size:13px">&#128241; Open in authenticator app</a> <span style="color:#64748b;font-size:12px">(on this phone)</span></p>
+      <p style="color:#64748b;font-size:12px;margin:8px 0 2px">Or enter this setup key manually:</p>
+      <div id="enroll-secret" class="mono" style="font-size:15px;letter-spacing:.12em;background:#0b1220;border:1px solid #1e293b;border-radius:8px;padding:10px;word-break:break-all;user-select:all"></div>
+      <input id="enroll-code" inputmode="numeric" autocomplete="one-time-code" placeholder="Enter the 6-digit code to confirm" style="text-align:center;margin-top:10px">
+      <div class="err" id="enroll-err"></div>
+      <button class="primary" id="enroll-go" style="width:100%">Confirm &amp; continue</button>
+    </div>
+    <div id="gate-backup" style="display:none">
+      <p class="as-hint"><b>Save these backup codes now</b> &mdash; each works once if you lose your authenticator. They will not be shown again.</p>
+      <div id="backup-codes" class="mono" style="font-size:14px;line-height:2;background:#0b1220;border:1px solid #1e293b;border-radius:8px;padding:12px;column-count:2;user-select:all"></div>
+      <button class="primary" id="backup-done" style="width:100%;margin-top:10px">I saved them &mdash; continue</button>
+    </div>
     <div id="gate-setpw" style="display:none">
       <p class="as-hint">Choose a password for your account (at least 8 characters).</p>
       <input id="npw" type="password" placeholder="New password" autocomplete="new-password">
@@ -240,6 +261,7 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
     <span class="spacer"></span>
     <span class="msg" id="msg">Click anything on the page to edit it.</span>
     <span class="mono" id="meLabel" style="color:#64748b;font-size:10px"></span>
+    <button class="ghost" id="secBtn" title="Two-factor authentication">&#128274;</button>
     <button class="ghost" id="draftsBtn" style="display:none" title="Pending changes awaiting your approval">&#128337; Drafts</button>
     <button class="ghost" id="usersBtn" style="display:none" title="Invite and manage users">&#128101; Users</button>
     <button class="primary" id="save">Save &amp; publish</button>
@@ -987,9 +1009,38 @@ async function doLogin(){
  const body={email:$('em').value,password:$('pw').value};
  if($('boot-extra').style.display!=='none'){body.name=$('bname').value;body.adminKey=$('bkey').value;}
  const r=await postJSON('/api/auth/login',body);
+ if(r.status===200&&r.json.totp){PENDING={email:body.email,password:body.password};showTotpStep();return;}
+ if(r.status===200&&r.json.enrollRequired){PENDING={};startEnroll(r.json.preToken);return;}
  if(r.status===200){ME=r.json.user;renderMe();enter();return;}
  if(r.status===409&&r.json.error==='no-users'){$('boot-extra').style.display='block';$('gate-title').textContent='Create the owner account';$('gate-err').textContent='First run \u2014 add your name and the legacy admin key to create the owner account.';return;}
  $('gate-err').textContent=r.json.error||('Login failed ('+r.status+')');
+}
+let PENDING={};
+function showTotpStep(){$('gate-login').style.display='none';$('gate-totp').style.display='block';$('gate-title').textContent='Two-factor code';$('totp-code').value='';$('totp-code').focus();}
+async function finishTotpLogin(extra){
+ $('totp-err').textContent='';
+ const r=await postJSON('/api/auth/login',Object.assign({email:PENDING.email,password:PENDING.password},extra));
+ if(r.status===200&&r.json.user){ME=r.json.user;renderMe();$('gate-totp').style.display='none';$('gate-login').style.display='block';enter();return;}
+ $('totp-err').textContent=r.json.error||('Failed ('+r.status+')');
+}
+$('totp-go').onclick=()=>finishTotpLogin({code:$('totp-code').value});
+$('totp-code').addEventListener('keydown',e=>{if(e.key==='Enter')$('totp-go').click();});
+$('totp-backup').onclick=()=>{const c=prompt('Enter one of your backup codes:');if(c)finishTotpLogin({backup:c});};
+async function startEnroll(preToken){
+ $('gate-login').style.display='none';$('gate-totp').style.display='none';$('gate-enroll').style.display='block';$('gate-title').textContent='Set up 2FA';
+ const r=await postJSON('/api/auth/totp',{action:'setup',preToken:preToken});
+ if(r.status!==200){$('enroll-err').textContent=r.json.error||'Setup failed';return;}
+ $('enroll-secret').textContent=r.json.secret.replace(/(.{4})/g,'$1 ').trim();
+ $('enroll-link').href=r.json.otpauth;
+ $('enroll-go').onclick=async()=>{
+  $('enroll-err').textContent='';
+  const c=await postJSON('/api/auth/totp',{action:'confirm',preToken:preToken,code:$('enroll-code').value});
+  if(c.status!==200){$('enroll-err').textContent=c.json.error||'Failed';return;}
+  ME=c.json.user;renderMe();
+  $('gate-enroll').style.display='none';$('gate-backup').style.display='block';$('gate-title').textContent='Backup codes';
+  $('backup-codes').innerHTML=(c.json.backupCodes||[]).map(x=>esc(x)).join('<br>');
+  $('backup-done').onclick=()=>{$('gate-backup').style.display='none';$('gate-login').style.display='block';enter();};
+ };
 }
 $('login').onclick=doLogin;
 $('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
@@ -1023,7 +1074,7 @@ async function showUsers(){
   const dot=u.status==='active'?'#22c55e':'#eab308';
   row.innerHTML='<span style="width:8px;height:8px;border-radius:50%;background:'+dot+';flex:0 0 auto" title="'+esc(u.status)+'"></span>'+
    '<span style="flex:1;min-width:0"><b>'+esc(u.name||u.email)+'</b> <span style="color:#64748b;font-size:12px">'+esc(u.email)+'</span></span>'+
-   '<span class="mono" style="font-size:10px;color:#38bdf8;text-transform:uppercase">'+esc(u.role)+(u.status==='invited'?' \u00b7 invited':'')+'</span>';
+   '<span class="mono" style="font-size:10px;color:#38bdf8;text-transform:uppercase">'+esc(u.role)+(u.status==='invited'?' · invited':'')+(u.twoFactor?' · 2FA✓':'')+'</span>';
   const mkb=(t,fn)=>{const b=document.createElement('button');b.className='ghost';b.style.cssText='font-size:11px;padding:5px 9px';b.textContent=t;b.onclick=fn;row.appendChild(b);};
   mkb('Access',()=>openAccess(u,row));
   mkb(u.status==='active'?'Reset link':'Invite link',async()=>{const r2=await postJSON('/api/auth/users',{action:'resend',id:u.id},true);if(r2.status===200){try{await navigator.clipboard.writeText(r2.json.link);}catch(e){}alert((r2.json.emailed?'Email sent. ':'Email not configured \u2014 ')+'link copied to clipboard.');}else alert(r2.json.error||'Failed');});
@@ -1050,7 +1101,7 @@ function openAccess(u,row){
  document.querySelectorAll('.accessbox').forEach(x=>x.remove());
  const box=document.createElement('div');box.className='accessbox';
  box.style.cssText='background:#0b1220;border:1px solid #1e293b;border-radius:10px;padding:14px;margin:6px 0 12px';
- const st={sites:(u.sites||[]).slice(),perms:JSON.parse(JSON.stringify(u.perms||{})),caps:Object.assign({canPublish:false,canDelete:true,canUpload:true,canTheme:false},u.caps||{})};
+ const st={sites:(u.sites||[]).slice(),perms:JSON.parse(JSON.stringify(u.perms||{})),caps:Object.assign({canPublish:false,canDelete:true,canUpload:true,canTheme:false},u.caps||{}),req:u.totpRequired===true};
  const h=t=>{const x=document.createElement('div');x.className='mono';x.style.cssText='font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#38bdf8;margin:10px 0 6px';x.textContent=t;return x;};
  const cb=(label,checked,fn)=>{const l=document.createElement('label');l.style.cssText='display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0;cursor:pointer';const c=document.createElement('input');c.type='checkbox';c.checked=checked;c.onchange=()=>fn(c.checked);l.appendChild(c);l.appendChild(document.createTextNode(label));return l;};
 
@@ -1096,13 +1147,22 @@ function openAccess(u,row){
   body.appendChild(cb('Can delete items',st.caps.canDelete!==false,v=>{st.caps.canDelete=v;}));
   body.appendChild(cb('Can upload media',st.caps.canUpload!==false,v=>{st.caps.canUpload=v;}));
   body.appendChild(cb('Can edit theme / design tokens',st.caps.canTheme===true,v=>{st.caps.canTheme=v;}));
+  body.appendChild(h('Security'));
+  body.appendChild(cb('Require two-factor authentication (they must enroll at next sign-in)',st.req===true,v=>{st.req=v;}));
+  if(u.twoFactor){
+   const rb=document.createElement('button');rb.className='ghost';rb.style.cssText='font-size:11px;padding:6px 10px;margin-top:4px';rb.textContent='Reset their 2FA (lost phone)';
+   rb.onclick=async()=>{if(!confirm('Remove '+u.email+"'s authenticator? They can sign in with just their password until they re-enroll."))return;
+    const r=await postJSON('/api/auth/users',{action:'update',id:u.id,totpReset:true},true);
+    if(r.status===200){box.remove();showUsers();}else alert(r.json.error||'Failed');};
+   body.appendChild(rb);
+  }
  }
  await0(draw());
 
  const foot=document.createElement('div');foot.style.cssText='display:flex;gap:10px;margin-top:12px';
  const sv=document.createElement('button');sv.className='primary';sv.style.flex='1';sv.textContent='Save access';
  sv.onclick=async()=>{
-  const r=await postJSON('/api/auth/users',{action:'update',id:u.id,sites:st.sites,perms:st.perms,caps:st.caps},true);
+  const r=await postJSON('/api/auth/users',{action:'update',id:u.id,sites:st.sites,perms:st.perms,caps:st.caps,totpRequired:st.req},true);
   if(r.status===200){box.remove();showUsers();}else alert(r.json.error||'Failed');
  };
  const cc=document.createElement('button');cc.className='ghost';cc.textContent='Cancel';cc.onclick=()=>box.remove();
@@ -1110,6 +1170,24 @@ function openAccess(u,row){
  row.parentNode.insertBefore(box,row.nextSibling);
 }
 function await0(p){if(p&&p.catch)p.catch(()=>{});}
+/* --- self-service 2FA (header lock button) --- */
+$('secBtn').onclick=async()=>{
+ if(!ME||ME.id==='__legacy__'){alert('Sign in with an account (not the legacy key) to manage 2FA.');return;}
+ if(ME.twoFactor){
+  const c=prompt('2FA is ON for your account.\nTo turn it off, enter a current authenticator code (or a backup code):');
+  if(!c)return;
+  const body=/^\d{6}$/.test(c.replace(/\s/g,''))?{action:'disable',code:c}:{action:'disable',backup:c};
+  const r=await postJSON('/api/auth/totp',body);
+  if(r.status===200){ME=r.json.user;alert('2FA is now off.');}else alert(r.json.error||'Failed');
+  return;
+ }
+ /* enable flow, inline via the gate screens over the app */
+ $('gate').style.display='flex';$('gate-login').style.display='none';
+ startEnroll(null);
+ const done=$('backup-done');
+ const orig=done.onclick;
+ /* backup-done handler set inside startEnroll -> after it, close the gate back to the app */
+}
 $('users-close').onclick=()=>{$('userspanel').style.display='none';};
 $('drafts-close').onclick=()=>{$('draftspanel').style.display='none';};
 $('usersBtn').onclick=showUsers;

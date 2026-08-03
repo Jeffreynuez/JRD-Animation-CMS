@@ -123,7 +123,7 @@ async function authUser(req) {
   return null;
 }
 const isAdmin = u => !!u && (u.role === 'owner' || u.role === 'admin');
-const publicUser = u => ({ id: u.id, email: u.email, name: u.name || '', role: u.role, sites: u.sites || [], perms: u.perms || {}, caps: u.caps || {}, status: u.status, twoFactor: !!(u.totp && u.totp.enabled), createdAt: u.createdAt });
+const publicUser = u => ({ id: u.id, email: u.email, name: u.name || '', role: u.role, sites: u.sites || [], perms: u.perms || {}, caps: u.caps || {}, status: u.status, twoFactor: !!(u.totp && u.totp.enabled), totpRequired: !!u.totpRequired, createdAt: u.createdAt });
 
 /* ---------- in-memory login throttle (best effort per lambda instance) ---------- */
 const attempts = new Map();
@@ -250,6 +250,61 @@ async function deleteDraft(siteId, file) {
   return d.status === 200;
 }
 
+/* ---------- TOTP two-factor (RFC 6238, no deps) ---------- */
+const B32A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+function b32encode(buf) {
+  let bits = 0, val = 0, out = '';
+  for (const b of buf) { val = (val << 8) | b; bits += 8; while (bits >= 5) { out += B32A[(val >>> (bits - 5)) & 31]; bits -= 5; } }
+  if (bits) out += B32A[(val << (5 - bits)) & 31];
+  return out;
+}
+function b32decode(str) {
+  let bits = 0, val = 0; const out = [];
+  for (const c of String(str).toUpperCase().replace(/[^A-Z2-7]/g, '')) {
+    val = (val << 5) | B32A.indexOf(c); bits += 5;
+    if (bits >= 8) { out.push((val >>> (bits - 8)) & 255); bits -= 8; }
+  }
+  return Buffer.from(out);
+}
+function hotp(secretBuf, counter) {
+  const b = Buffer.alloc(8); b.writeBigUInt64BE(BigInt(counter));
+  const h = crypto.createHmac('sha1', secretBuf).update(b).digest();
+  const o = h[h.length - 1] & 15;
+  return String((h.readUInt32BE(o) & 0x7fffffff) % 1e6).padStart(6, '0');
+}
+function totpCheck(secretB32, code, windowSteps) {
+  const sec = b32decode(secretB32);
+  const t = Math.floor(Date.now() / 30000);
+  const c = String(code || '').replace(/\D/g, '');
+  if (c.length !== 6) return false;
+  const w = windowSteps == null ? 1 : windowSteps;
+  for (let i = -w; i <= w; i++) if (hotp(sec, t + i) === c) return true;
+  return false;
+}
+const newTotpSecret = () => b32encode(crypto.randomBytes(20));
+function otpauthURI(email, secret) {
+  const issuer = encodeURIComponent(MAIL_NAME);
+  return 'otpauth://totp/' + issuer + ':' + encodeURIComponent(email) + '?secret=' + secret + '&issuer=' + issuer + '&digits=6&period=30';
+}
+const hashBackup = c => crypto.createHash('sha256').update(String(c).toUpperCase().replace(/[^A-Z0-9]/g, '')).digest('hex');
+function newBackupCodes() {
+  const codes = [];
+  for (let i = 0; i < 8; i++) {
+    const raw = b32encode(crypto.randomBytes(5)).slice(0, 8);
+    codes.push(raw.slice(0, 4) + '-' + raw.slice(4));
+  }
+  return codes;
+}
+/* consume a backup code; returns true (and mutates u.totp.backup) on match */
+function useBackupCode(u, code) {
+  if (!u.totp || !Array.isArray(u.totp.backup)) return false;
+  const h = hashBackup(code);
+  const i = u.totp.backup.indexOf(h);
+  if (i < 0) return false;
+  u.totp.backup.splice(i, 1);
+  return true;
+}
+
 function readBody(req) {
   let b = req.body;
   if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = {}; } }
@@ -263,4 +318,5 @@ module.exports = {
   authUser, isAdmin, publicUser, throttle, recordFail, recordOk,
   sendMail, inviteEmailHtml, setpwLink, readBody, validEmail, SESSION_DAYS,
   siteAllowed, can, allowedWriteFiles, readDraft, writeDraft, listDrafts, deleteDraft,
+  totpCheck, newTotpSecret, otpauthURI, newBackupCodes, hashBackup, useBackupCode,
 };

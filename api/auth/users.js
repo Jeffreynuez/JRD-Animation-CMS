@@ -69,6 +69,8 @@ module.exports = async (req, res) => {
     if (Array.isArray(b.sites)) target.sites = b.sites.map(String).slice(0, 100);
     if (b.perms && typeof b.perms === 'object') target.perms = b.perms;
     if (b.caps && typeof b.caps === 'object') target.caps = Object.assign({}, target.caps, b.caps);
+    if (b.totpRequired !== undefined) target.totpRequired = !!b.totpRequired;
+    if (b.totpReset === true) delete target.totp;
     try { await A.saveUsers(store.users, store.sha, 'cms: update access for ' + target.email); }
     catch (e) { return res.status(502).json({ error: e.message }); }
     return res.status(200).json({ user: A.publicUser(target) });
