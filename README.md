@@ -33,7 +33,14 @@ encoder so secrets never leave the browser.
   publish countdown with auto preview reload.
 - **Media** — per-site Cloudinary routing, signed uploads, pre-flight size
   caps (10MB image / 100MB video), images stored web-lean via a signed
-  incoming transformation (`c_limit,w_2600,h_2600`).
+  incoming transformation (`c_limit,w_2600,h_2600`), a media library for
+  reusing anything already uploaded, crop tool, and a focal-point picker so
+  the important part of a photo stays centred in every crop.
+- **Working like a real editor** — Save (kept as a draft, restored next
+  visit) is separate from Publish (live); autosave every 30s; undo/redo
+  (Ctrl+Z / Ctrl+Y); per-section version history with one-click restore;
+  scheduled publishing ("go live Friday 9am"); on-page drag-and-drop to add,
+  replace and reorder images; empty alt-text nudges; a first-visit tour.
 
 ## Structure
 
@@ -83,6 +90,7 @@ vercel.json         cleanUrls so /admin serves admin.html; /api/* are functions
 | `MAIL_FROM_EMAIL`        | *(optional)* A **verified Brevo sender**. Avoid bare gmail addresses (deliverability). |
 | `MAIL_FROM_NAME`         | *(optional)* Email display name + 2FA issuer label. Default "JRD Site Editor". |
 | `ADMIN_URL`              | *(optional)* Base URL used in invite links.                    |
+| `CRON_SECRET`            | *(optional)* Random string; lets the daily Vercel cron authenticate to `/api/cron` for scheduled publishing. |
 
 ## Day-to-day
 

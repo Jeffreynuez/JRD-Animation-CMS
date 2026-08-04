@@ -25,6 +25,6 @@ module.exports = async (req, res) => {
   let draft = null;
   try { draft = await A.readDraft(site.id, file); } catch (e) { /* drafts unavailable - fall through to live */ }
   if (draft && draft.data && draft.data.content)
-    return res.status(200).json({ content: draft.data.content, sha: r.json.sha, draft: true, draftAt: draft.data.savedAt || null, draftBy: (draft.data.author && draft.data.author.email) || null });
+    return res.status(200).json({ content: draft.data.content, sha: r.json.sha, draft: true, draftAt: draft.data.savedAt || null, publishAt: draft.data.publishAt || null, draftBy: (draft.data.author && draft.data.author.email) || null });
   res.status(200).json({ content, sha: r.json.sha });
 };

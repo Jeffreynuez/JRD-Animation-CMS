@@ -236,7 +236,7 @@ async function listDrafts(siteId) {
   const out = [];
   for (const f of r.json) {
     const d = await readDraft(siteId, f.name);
-    if (d) out.push({ file: f.name, author: d.data.author, savedAt: d.data.savedAt });
+    if (d) out.push({ file: f.name, author: d.data.author, savedAt: d.data.savedAt, publishAt: d.data.publishAt || null });
   }
   return out;
 }
@@ -317,6 +317,6 @@ module.exports = {
   signToken, verifyToken, setSessionCookie, clearSessionCookie, sessionFromReq,
   authUser, isAdmin, publicUser, throttle, recordFail, recordOk,
   sendMail, inviteEmailHtml, setpwLink, readBody, validEmail, SESSION_DAYS,
-  siteAllowed, can, allowedWriteFiles, readDraft, writeDraft, listDrafts, deleteDraft,
+  siteAllowed, can, allowedWriteFiles, siteSchema, readDraft, writeDraft, listDrafts, deleteDraft,
   totpCheck, newTotpSecret, otpauthURI, newBackupCodes, hashBackup, useBackupCode,
 };

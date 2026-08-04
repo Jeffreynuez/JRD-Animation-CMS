@@ -118,6 +118,23 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 .cropbar .grow{flex:1;font-size:12px;color:var(--mut)}
 .cropbar button{padding:8px 14px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;font:500 13px system-ui}
 .cropbar button.primary{background:var(--cyan);color:#fff;border-color:var(--cyan)}
+.libgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;overflow:auto;max-height:60vh;min-width:min(760px,84vw);padding:2px}
+.libcell{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;background:#1f2937;aspect-ratio:1;padding:0}
+.libcell img{width:100%;height:100%;object-fit:cover;display:block}
+.libcell:hover{outline:2px solid var(--cyan)}
+.libcell .sz{position:absolute;left:0;right:0;bottom:0;background:#0f172ab3;color:#e2e8f0;font:500 10px system-ui;padding:2px 6px;text-align:left}
+.focalstage{position:relative;max-width:80vw;max-height:68vh;overflow:hidden;align-self:center;line-height:0;background:#1f2937;cursor:crosshair;user-select:none}
+.focalstage img{max-width:80vw;max-height:68vh;display:block}
+.focaldot{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 2px #0ea5e9,0 0 14px #0009;pointer-events:none}
+.focaldot::after{content:'';position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;background:#0ea5e9;border-radius:50%}
+.tourov{position:fixed;inset:0;z-index:300;background:#0f172a66}
+.tourtip{position:fixed;z-index:301;background:#fff;border-radius:12px;box-shadow:0 18px 50px #0f172a55;padding:16px 18px;max-width:320px;font:400 13.5px/1.55 system-ui}
+.tourtip .tt{font-weight:700;margin-bottom:4px}
+.tourtip .tbar{display:flex;gap:8px;align-items:center;margin-top:12px}
+.tourtip .tbar .grow{flex:1;font-size:11px;color:var(--mut)}
+.tourtip button{padding:7px 12px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;font:500 12.5px system-ui}
+.tourtip button.primary{background:var(--cyan);color:#fff;border-color:var(--cyan)}
+.tourring{position:fixed;z-index:301;border:2px solid var(--cyan);border-radius:10px;pointer-events:none;box-shadow:0 0 0 6px #0ea5e933}
 .galrow{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:.5px solid #eef1f5}
 .galthumb{flex:none;width:46px}
 .galthumb img,.galthumb video{width:46px;height:82px;object-fit:cover;border-radius:6px;background:#1f2937;display:block}
@@ -284,7 +301,9 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
     <button class="ghost" id="usersBtn" style="display:none" title="Invite and manage users">&#128101; Users</button>
     <button class="ghost" id="undoBtn" title="Undo (Ctrl+Z)" disabled>&#8630;</button>
     <button class="ghost" id="redoBtn" title="Redo (Ctrl+Y)" disabled>&#8631;</button>
+    <button class="ghost" id="tourBtn" title="Quick tour of the editor">?</button>
     <button class="ghost" id="saveDraftBtn" title="Store your changes in the editor without touching the live site">Save</button>
+    <button class="ghost" id="schedBtn" title="Schedule these changes to go live later">&#128340;</button>
     <button class="primary" id="save">Publish</button>
     <button class="ghost" id="logout">Sign out</button>
   </header>
@@ -312,7 +331,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 <script>
 'use strict';
 let CDNP='https://res.cloudinary.com/dfmofrlt3/';
-const cdn=u=>u?String(u).replace('CDN:',CDNP):u;
+const stripFp=u=>String(u||'').replace(/#fp=[\d.]+,[\d.]+$/,'');
+const fpOf=u=>{const m=String(u||'').match(/#fp=([\d.]+),([\d.]+)$/);return m?{x:+m[1],y:+m[2]}:null;};
+const cdn=u=>u?stripFp(String(u)).replace('CDN:',CDNP):u;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const key=()=>sessionStorage.getItem('jrd-admin-key')||'';
@@ -364,8 +385,9 @@ async function ensureFile(fn){
  const r=await api('/api/load?file='+fn+'&site='+encodeURIComponent(curSite.id));
  if(r.status===401){sessionStorage.removeItem('jrd-admin-key');location.reload();throw new Error('auth');}
  if(r.status!==200)throw new Error(r.json.error||r.status);
- files[fn]={content:r.json.content,sha:r.json.sha,dirty:false,draft:!!r.json.draft};
- if(r.json.draft)setMsg('Restored your saved draft of '+fn+' — publish when ready.');
+ files[fn]={content:r.json.content,sha:r.json.sha,dirty:false,draft:!!r.json.draft,publishAt:r.json.publishAt||null};
+ if(r.json.publishAt)setMsg('Restored your saved draft of '+fn+' — scheduled to go live '+new Date(r.json.publishAt).toLocaleString()+'.');
+ else if(r.json.draft)setMsg('Restored your saved draft of '+fn+' — publish when ready.');
  /* fold the pristine copy into the current undo snapshot so the first edit
     to this file is undoable */
  if(HIST.idx>=0&&HIST.stack[HIST.idx]&&!HIST.stack[HIST.idx][fn])
@@ -455,7 +477,7 @@ const hasFiles=e=>{const t=e.dataTransfer&&e.dataTransfer.types;return !!t&&[].i
 
 /* ============ image crop (Cloudinary c_crop) ============ */
 function cloudParts(v){
- let str=String(v||'').trim();if(!str)return null;
+ let str=stripFp(String(v||'').trim());if(!str)return null;
  let m=str.match(/^CDN:(image|video|raw)\/upload\/(.*)$/),cdnForm=false,head='',rtype='',rest='';
  if(m){cdnForm=true;rtype=m[1];rest=m[2];}
  else{m=str.match(/^(https?:\/\/res\.cloudinary\.com\/[^/]+\/)(image|video|raw)\/upload\/(.*)$/);if(!m)return null;head=m[1];rtype=m[2];rest=m[3];}
@@ -519,6 +541,76 @@ function openCropModal(url,nW,nH,onApply,onReset){
  ov.addEventListener('mousedown',e=>{if(e.target===ov)close();});
 }
 
+/* ============ media library (reuse what's already uploaded) ============ */
+async function openMediaLibrary(onPick,opts={}){
+ const ov=document.createElement('div');ov.className='cropov';
+ const panel=document.createElement('div');panel.className='croppanel';
+ const grid=document.createElement('div');grid.className='libgrid';
+ const bar=document.createElement('div');bar.className='cropbar';
+ const info=document.createElement('div');info.className='grow';info.textContent='Loading your media…';
+ const more=document.createElement('button');more.textContent='Load more';more.style.display='none';
+ const done=document.createElement('button');done.textContent=opts.multi?'Done':'Cancel';done.className=opts.multi?'primary':'';
+ bar.appendChild(info);bar.appendChild(more);bar.appendChild(done);
+ panel.appendChild(grid);panel.appendChild(bar);ov.appendChild(panel);document.body.appendChild(ov);
+ const close=()=>ov.remove();
+ done.onclick=close;ov.addEventListener('mousedown',e=>{if(e.target===ov)close();});
+ let cursor=null,total=0;
+ async function page(){
+  more.style.display='none';
+  const r=await api('/api/media?site='+encodeURIComponent(curSite.id)+(cursor?'&cursor='+encodeURIComponent(cursor):''));
+  if(r.status!==200){info.textContent=r.json.error||'Could not load the library.';return;}
+  (r.json.items||[]).forEach(it=>{
+   const c=document.createElement('button');c.type='button';c.className='libcell';c.title=it.id;
+   const im=document.createElement('img');im.loading='lazy';im.src=it.thumb;im.onerror=()=>c.remove();c.appendChild(im);
+   const sz=document.createElement('span');sz.className='sz';sz.textContent=(it.w&&it.h?it.w+'×'+it.h:'')+(it.bytes?' · '+(it.bytes/1048576).toFixed(1)+'MB':'');c.appendChild(sz);
+   c.onclick=()=>{onPick(it.value,it);if(opts.multi){c.style.outline='2px solid #16a34a';info.textContent='Added ✓ — keep picking, or press Done.';}else close();};
+   grid.appendChild(c);total++;
+  });
+  cursor=r.json.cursor;
+  info.textContent=total?(total+' images in this site\u2019s media'+(opts.multi?' — click to add':' — click to use')):'No uploads yet — anything you upload appears here for reuse.';
+  more.style.display=cursor?'':'none';
+ }
+ more.onclick=page;
+ try{await page();}catch(e){info.textContent='Could not load the library.';}
+}
+function makeLibraryBtn(onUrl){
+ const b=document.createElement('button');b.type='button';b.className='upbtn';b.textContent='▤ Library';b.title='Pick from images already uploaded to this site';
+ b.onclick=()=>openMediaLibrary(v=>onUrl(v));
+ return b;
+}
+
+/* ============ focal point (keeps the important spot centred in crops) ============ */
+function makeFocalBtn(getVal,setVal){
+ const b=document.createElement('button');b.type='button';b.className='upbtn';b.textContent='◎ Focal';b.title='Mark the important spot — it stays centred when the image is cropped to fit';
+ b.onclick=()=>{
+  const raw=String(getVal()||'').trim();
+  const o=cloudParts(raw);
+  if(!raw||(!o&&!/^https?:/.test(raw))){alert('Set an image first, then pick its focal point.');return;}
+  const url=cdn(raw);
+  const cur=fpOf(raw);
+  const ov=document.createElement('div');ov.className='cropov';
+  const panel=document.createElement('div');panel.className='croppanel';
+  const stage=document.createElement('div');stage.className='focalstage';
+  const im=document.createElement('img');im.draggable=false;im.src=url;stage.appendChild(im);
+  const dot=document.createElement('div');dot.className='focaldot';dot.style.display='none';stage.appendChild(dot);
+  const bar=document.createElement('div');bar.className='cropbar';
+  const info=document.createElement('div');info.className='grow';info.textContent='Click the most important part of the image (a face, the knot…).';
+  bar.appendChild(info);
+  panel.appendChild(stage);panel.appendChild(bar);ov.appendChild(panel);document.body.appendChild(ov);
+  let pt=cur?{x:cur.x,y:cur.y}:null;
+  const paint=()=>{if(!pt){dot.style.display='none';return;}dot.style.display='';dot.style.left=(pt.x/100*im.clientWidth)+'px';dot.style.top=(pt.y/100*im.clientHeight)+'px';info.textContent='Focal point at '+Math.round(pt.x)+'%, '+Math.round(pt.y)+'% — Save to keep it.';};
+  if(im.complete)paint();else im.onload=paint;
+  stage.addEventListener('click',e=>{const r=im.getBoundingClientRect();pt={x:Math.max(0,Math.min(100,(e.clientX-r.left)/r.width*100)),y:Math.max(0,Math.min(100,(e.clientY-r.top)/r.height*100))};paint();});
+  const close=()=>ov.remove();
+  const mk=(t,fn,cls)=>{const x=document.createElement('button');x.type='button';x.textContent=t;if(cls)x.className=cls;x.onclick=fn;bar.appendChild(x);return x;};
+  mk('Clear',()=>{setVal(stripFp(raw));close();});
+  mk('Cancel',close);
+  mk('Save focal point',()=>{if(!pt){close();return;}setVal(stripFp(raw)+'#fp='+pt.x.toFixed(1)+','+pt.y.toFixed(1));close();},'primary');
+  ov.addEventListener('mousedown',e=>{if(e.target===ov)close();});
+ };
+ return b;
+}
+
 /* ============ field renderer ============ */
 function renderField(fd,obj,markDirty,opts={}){
  const w=document.createElement('div');w.className='f';
@@ -573,10 +665,20 @@ function renderField(fd,obj,markDirty,opts={}){
  else{el=document.createElement('input');el.type='text';el.value=v;}
  const commit=()=>{obj[fd.k]=fromView(fd,el);markDirty();if(opts.onChange)opts.onChange(fd,obj[fd.k]);};
  el.addEventListener('input',commit);el.addEventListener('change',commit);
+ /* gentle nudge: empty captions/alt text hurt SEO + screen readers */
+ if(fd.k==='alt'||fd.k==='cap'||/caption|alt text/i.test(fd.l||'')){
+  const nud=document.createElement('div');nud.className='hint';nud.style.color='#b45309';
+  nud.textContent='Tip: describe this image — captions help Google find the site and let screen readers read it.';
+  const upNud=()=>{const empty=!String(el.value||'').trim();nud.style.display=empty?'':'none';el.style.boxShadow=empty?'0 0 0 2px #fcd34d66':'';};
+  el.addEventListener('input',upNud);setTimeout(upNud,0);
+  w.appendChild(el);w.appendChild(nud);
+  if(fd.hint){const h=document.createElement('div');h.className='hint';h.textContent=fd.hint;w.appendChild(h);}
+  return w;
+ }
  if(fd.type===T.MEDIA||fd.type===T.YT){
   const row=document.createElement('div');row.className='mediarow';
   const g=document.createElement('div');g.className='grow';g.appendChild(el);row.appendChild(g);
-  if(fd.type===T.MEDIA){row.appendChild(makeUploadBtn(url=>{el.value=url;commit();upd();}));row.appendChild(makeCropBtn(()=>el.value,url=>{el.value=url;commit();upd();}));}
+  if(fd.type===T.MEDIA){row.appendChild(makeUploadBtn(url=>{el.value=url;commit();upd();}));row.appendChild(makeLibraryBtn(url=>{el.value=url;commit();upd();}));row.appendChild(makeCropBtn(()=>el.value,url=>{el.value=url;commit();upd();}));row.appendChild(makeFocalBtn(()=>el.value,v=>{el.value=v;commit();upd();}));}
   w.appendChild(row);
   prevBox=document.createElement('div');prevBox.className='prev';w.appendChild(prevBox);
   const upd=()=>{if(fd.type===T.YT){prevBox.innerHTML=el.value.trim()?'<img src="https://i.ytimg.com/vi/'+esc(el.value.trim())+'/hqdefault.jpg">':'';}
@@ -608,7 +710,7 @@ function renderSidebar(){
   if(child)b.style.paddingLeft='30px';
   const label=child?(s.label.split(' · ').slice(1).join(' · ')||s.label):s.label;
   const fst=files[s.file];
-  b.innerHTML=esc(label)+(fst&&fst.dirty?'<span class="dot">●</span>':(fst&&fst.draft?'<span class="dot" style="color:#f59e0b" title="Saved draft — not live yet">●</span>':''));
+  b.innerHTML=esc(label)+(fst&&fst.dirty?'<span class="dot">●</span>':(fst&&fst.draft?(fst.publishAt?'<span class="dot" style="color:#38bdf8" title="Scheduled: '+esc(new Date(fst.publishAt).toLocaleString())+'">●</span>':'<span class="dot" style="color:#f59e0b" title="Saved draft — not live yet">●</span>'):''));
   b.onclick=()=>openSection(s.id);
   sb.appendChild(b);
  };
@@ -635,7 +737,11 @@ function renderSidebar(){
 async function openSection(id){
  curId=id;const s=section();
  renderSidebar();
- $('sec-title').textContent=s.label;
+ const h2=$('sec-title');h2.textContent=s.label;
+ const hb=document.createElement('button');hb.type='button';hb.textContent='⟲ History';
+ hb.style.cssText='margin-left:14px;vertical-align:middle;padding:5px 11px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;font:500 11.5px system-ui;color:#475569';
+ hb.title='Every published version of this section — restore any of them';
+ hb.onclick=()=>showHistory(s.file);h2.appendChild(hb);
  $('content').innerHTML='<p class="msg">Loading…</p>';
  try{await ensureFile(s.file);for(const b of (s.blocks||[])){if(b.file&&b.file!==s.file)await ensureFile(b.file);}}catch(e){$('content').innerHTML='<p class="msg err">Load failed: '+esc(e.message)+'</p>';return;}
  renderBlocks();
@@ -687,6 +793,8 @@ function renderBlocks(){
    blk.appendChild(bar);
    const listEl=document.createElement('div');blk.appendChild(listEl);
    const mediaKey=b.thumbField||((b.fields.find(fd=>fd.type==='media')||{}).k)||null;
+   if(mediaKey){const lib=document.createElement('button');lib.textContent='▤ Library';lib.title='Add images already uploaded to this site';bar.insertBefore(lib,search);
+    lib.onclick=()=>openMediaLibrary(v=>{const o=blank();o[mediaKey]=v;arr.unshift(o);openIdx=-1;markDirty();draw();vItemAdd(bf,b.path,v,o);},{multi:true});}
    const blank=()=>{const o={};b.fields.forEach(fd=>{o[fd.k]=fd.type===T.BOOL?false:(fd.type===T.LINES||fd.type===T.MEDLINES||fd.type===T.REELS?[]:(fd.type===T.SEL?(fd.opts||[''])[0]:''));});return o;};
    let openIdx=-1;
    let dragFrom=null;
@@ -761,9 +869,9 @@ function postTheme(){
 }
 const vApply=(edit,val)=>{if(vframe().contentWindow)vframe().contentWindow.postMessage({jrd:'apply',edit,value:val},'*');};
 const vItemRemove=(fn,arrPath,idx)=>{if(vframe().contentWindow)vframe().contentWindow.postMessage({jrd:'item-remove',file:fn,arr:arrPath,idx:idx},'*');};
-const vMediaApply=(edit,val)=>{if(vframe().contentWindow&&val)vframe().contentWindow.postMessage({jrd:'media-apply',edit,url:cdn(String(val).trim())},'*');};
-const vItemMedia=(fn,arrPath,idx,val)=>{if(vframe().contentWindow&&val)vframe().contentWindow.postMessage({jrd:'item-media',file:fn,arr:arrPath,idx:idx,url:cdn(String(val).trim())},'*');};
-const vItemAdd=(fn,arrPath,val,item)=>{if(vframe().contentWindow&&val)vframe().contentWindow.postMessage({jrd:'item-add',file:fn,arr:arrPath,url:cdn(String(val).trim()),item:item?JSON.parse(JSON.stringify(item)):null},'*');};
+const vMediaApply=(edit,val)=>{if(vframe().contentWindow&&val)vframe().contentWindow.postMessage({jrd:'media-apply',edit,url:cdn(String(val).trim()),focal:fpOf(val)},'*');};
+const vItemMedia=(fn,arrPath,idx,val)=>{if(vframe().contentWindow&&val)vframe().contentWindow.postMessage({jrd:'item-media',file:fn,arr:arrPath,idx:idx,url:cdn(String(val).trim()),focal:fpOf(val)},'*');};
+const vItemAdd=(fn,arrPath,val,item)=>{if(vframe().contentWindow&&val)vframe().contentWindow.postMessage({jrd:'item-add',file:fn,arr:arrPath,url:cdn(String(val).trim()),focal:fpOf(val),item:item?JSON.parse(JSON.stringify(item)):null},'*');};
 const vItemField=(fn,arrPath,idx,k2,val)=>{if(vframe().contentWindow)vframe().contentWindow.postMessage({jrd:'item-field',file:fn,arr:arrPath,idx:idx,key:k2,value:val},'*');};
 function loadFrame(){
  const base=(curSite&&curSite.liveUrl?curSite.liveUrl:'').replace(/\/$/,'');
@@ -1013,7 +1121,9 @@ async function saveDraftAll(){
  $('saveDraftBtn').disabled=true;
  for(const [fn,st] of dirty){
   setMsg('Saving '+fn+'…');
-  const r=await api('/api/save',{method:'POST',body:JSON.stringify({file:fn,content:st.content,sha:st.sha,draft:true,message:'cms: draft '+fn,site:curSite.id})});
+  const body={file:fn,content:st.content,sha:st.sha,draft:true,message:'cms: draft '+fn,site:curSite.id};
+  if(st.publishAt)body.publishAt=st.publishAt;   /* keep an existing schedule */
+  const r=await api('/api/save',{method:'POST',body:JSON.stringify(body)});
   if(r.status!==200){setMsg('Save failed on '+fn+': '+(r.json.error||r.status),'err');$('saveDraftBtn').disabled=false;return;}
   st.dirty=false;st.draft=true;
  }
@@ -1033,7 +1143,7 @@ async function publishAll(){
   if(r.status===409){setMsg('Conflict on '+fn+' — it changed elsewhere. Sign out/in to reload.','err');$('save').disabled=false;return;}
   if(r.status!==200){setMsg('Publish failed on '+fn+': '+(r.json.error||r.status),'err');$('save').disabled=false;return;}
   if(r.json.draft){st.dirty=false;st.draft=true;continue;} /* server downgraded to draft (no publish rights) */
-  st.sha=r.json.sha;st.dirty=false;st.draft=false;
+  st.sha=r.json.sha;st.dirty=false;st.draft=false;st.publishAt=null;
  }
  $('save').disabled=false;renderSidebar();refreshDrafts();
  startPublishWatch();
@@ -1050,6 +1160,137 @@ function startPublishWatch(){
   loadFrame();
   setMsg('Live \u2713 \u2014 preview reloaded with your published changes.','ok');
  },5000);
+}
+
+/* ============ version history & rollback ============ */
+async function showHistory(fn){
+ const ov=document.createElement('div');ov.className='cropov';
+ const panel=document.createElement('div');panel.className='croppanel';panel.style.minWidth='min(600px,92vw)';
+ const list=document.createElement('div');list.style.cssText='overflow:auto;max-height:60vh;display:flex;flex-direction:column;gap:6px';
+ const bar=document.createElement('div');bar.className='cropbar';
+ const info=document.createElement('div');info.className='grow';info.textContent='Loading versions…';
+ const cls=document.createElement('button');cls.textContent='Close';
+ bar.appendChild(info);bar.appendChild(cls);
+ panel.appendChild(list);panel.appendChild(bar);ov.appendChild(panel);document.body.appendChild(ov);
+ const close=()=>ov.remove();cls.onclick=close;ov.addEventListener('mousedown',e=>{if(e.target===ov)close();});
+ const r=await api('/api/history?site='+encodeURIComponent(curSite.id)+'&file='+encodeURIComponent(fn));
+ if(r.status!==200){info.textContent=r.json.error||'Could not load history.';return;}
+ const vs=r.json.versions||[];
+ info.textContent=vs.length?'Every published version. Restoring loads it into the editor — nothing goes live until you Publish.':'No published versions yet.';
+ vs.forEach((v,i)=>{
+  const row=document.createElement('button');row.type='button';
+  row.style.cssText='display:flex;gap:10px;align-items:baseline;text-align:left;border:1px solid var(--line);border-radius:9px;background:#fff;padding:9px 12px;cursor:pointer;font:400 12.5px system-ui';
+  const when=v.at?new Date(v.at).toLocaleString():'';
+  row.innerHTML='<b style="white-space:nowrap">'+esc(when)+'</b><span style="flex:1;color:#475569">'+esc(v.message)+'</span>'+(i===0?'<span style="color:#16a34a;font-weight:700">current</span>':'<span style="color:var(--cyan);font-weight:700">restore</span>');
+  row.onclick=async()=>{
+   if(i===0){close();return;}
+   if(!confirm('Load the version from '+when+' into the editor?\nYour current edits to this section are replaced (Undo brings them back). Nothing goes live until you Publish.'))return;
+   const r2=await api('/api/history?site='+encodeURIComponent(curSite.id)+'&file='+encodeURIComponent(fn)+'&at='+encodeURIComponent(v.sha));
+   if(r2.status!==200){info.textContent=r2.json.error||'Could not load that version.';return;}
+   try{await ensureFile(fn);}catch(e){}
+   if(!files[fn]){info.textContent='Could not open '+fn+'.';return;}
+   files[fn].content=r2.json.content;files[fn].dirty=true;
+   renderSidebar();try{renderBlocks();}catch(e){}
+   close();setMsg('Restored the version from '+when+' into the editor — review it, then Publish.','ok');
+  };
+  list.appendChild(row);
+ });
+}
+
+/* ============ scheduled publishing ============ */
+function openSchedule(){
+ const list=Object.entries(files).filter(([,st])=>st.dirty||st.draft);
+ if(!list.length){setMsg('Nothing to schedule — make some edits first.');return;}
+ const ov=document.createElement('div');ov.className='cropov';
+ const panel=document.createElement('div');panel.className='croppanel';panel.style.minWidth='min(440px,92vw)';
+ const h=document.createElement('div');h.style.cssText='font:700 15px system-ui';h.textContent='Schedule publish';
+ const p=document.createElement('div');p.style.cssText='font:400 12.5px/1.6 system-ui;color:#475569';
+ p.textContent='Saves '+list.map(([fn])=>fn).join(', ')+' and publishes automatically at the time you pick (exact timing can vary by up to an hour).';
+ const inp=document.createElement('input');inp.type='datetime-local';inp.style.cssText='padding:9px 12px;border:1px solid var(--line);border-radius:8px;font:400 14px system-ui';
+ const d=new Date(Date.now()+3600000);d.setMinutes(0,0,0);
+ const pad=n=>String(n).padStart(2,'0');
+ inp.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':00';
+ const bar=document.createElement('div');bar.className='cropbar';
+ const info=document.createElement('div');info.className='grow';bar.appendChild(info);
+ panel.appendChild(h);panel.appendChild(p);panel.appendChild(inp);panel.appendChild(bar);ov.appendChild(panel);document.body.appendChild(ov);
+ const close=()=>ov.remove();
+ const mk=(t,fn2,cls2)=>{const x=document.createElement('button');x.type='button';x.textContent=t;if(cls2)x.className=cls2;x.onclick=fn2;bar.appendChild(x);return x;};
+ mk('Clear schedule',async()=>{await schedSave(null);close();});
+ mk('Cancel',close);
+ mk('Schedule',async()=>{
+  const t=new Date(inp.value);
+  if(isNaN(t)||t.getTime()<Date.now()-60000){info.textContent='Pick a future time.';return;}
+  await schedSave(t.toISOString());close();
+ },'primary');
+ ov.addEventListener('mousedown',e=>{if(e.target===ov)close();});
+}
+async function schedSave(publishAt){
+ const list=Object.entries(files).filter(([,st])=>st.dirty||st.draft);
+ for(const [fn,st] of list){
+  const body={file:fn,content:st.content,sha:st.sha,draft:true,message:'cms: schedule '+fn,site:curSite.id};
+  if(publishAt)body.publishAt=publishAt;
+  const r=await api('/api/save',{method:'POST',body:JSON.stringify(body)});
+  if(r.status!==200){setMsg('Could not schedule '+fn+': '+(r.json.error||r.status),'err');return;}
+  st.dirty=false;st.draft=true;st.publishAt=publishAt||null;
+ }
+ renderSidebar();refreshDrafts();
+ setMsg(publishAt?('Scheduled ✓ — goes live around '+new Date(publishAt).toLocaleString()+'.'):'Schedule cleared — your changes stay saved in the editor.','ok');
+}
+
+/* ============ autosave (silent drafts) + scheduled-publish poke ============ */
+let AUTOSAVING=false,AUTOTICKS=0;
+setInterval(async()=>{
+ AUTOTICKS++;
+ if(!curSite)return;
+ /* poke the scheduler every 5 min so scheduled publishes fire near their time */
+ if(AUTOTICKS%10===0)fetch('/api/cron',{method:'POST',headers:{'x-admin-key':key()}}).catch(()=>{});
+ if(document.hidden||AUTOSAVING)return;
+ const dirty=Object.entries(files).filter(([,st])=>st.dirty);
+ if(!dirty.length)return;
+ AUTOSAVING=true;
+ try{
+  for(const [fn,st] of dirty){
+   const body={file:fn,content:st.content,sha:st.sha,draft:true,message:'cms: autosave '+fn,site:curSite.id};
+   if(st.publishAt)body.publishAt=st.publishAt;   /* keep an existing schedule */
+   const r=await api('/api/save',{method:'POST',body:JSON.stringify(body)});
+   if(r.status!==200)return;
+   st.dirty=false;st.draft=true;
+  }
+  renderSidebar();
+  setMsg('Autosaved ✓ — draft kept in the editor.');
+ }catch(e){/* next tick retries */}finally{AUTOSAVING=false;}
+},30000);
+
+/* ============ first-visit tour ============ */
+function startTour(force){
+ try{if(!force&&localStorage.getItem('jrd-tour-done'))return;}catch(e){return;}
+ const pub=canDo('canPublish');
+ const steps=[
+  {sel:'#vframe',title:'Edit right on the page',text:'This is your real site. Click any text to type into it, click any photo to swap it.'},
+  {sel:'#drawerBtn',title:'Manage content',text:'Every section, list and setting lives in here — add, remove and reorder anything.'},
+  {sel:'#vframe',title:'Drag & drop photos',text:'Drop image files from your computer onto a photo to replace it, or into a gallery to add them. Drag tiles around to reorder.'},
+  {sel:'#saveDraftBtn',title:'Save, then publish',text:pub?'Save keeps your work in the editor — nothing changes on the live site until you press Publish.':'Save sends your changes for review — your site admin approves and publishes them.'},
+ ];
+ let i=0;
+ const ov=document.createElement('div');ov.className='tourov';
+ const ring=document.createElement('div');ring.className='tourring';
+ const tip=document.createElement('div');tip.className='tourtip';
+ document.body.appendChild(ov);document.body.appendChild(ring);document.body.appendChild(tip);
+ const end=()=>{ov.remove();ring.remove();tip.remove();try{localStorage.setItem('jrd-tour-done','1');}catch(e){}};
+ function show(){
+  const st=steps[i];const el=document.querySelector(st.sel);
+  const r=el?el.getBoundingClientRect():{left:innerWidth/2-100,top:innerHeight/2-60,width:200,height:120,right:innerWidth/2+100,bottom:innerHeight/2+60};
+  ring.style.left=(r.left-6)+'px';ring.style.top=(r.top-6)+'px';ring.style.width=(r.width+12)+'px';ring.style.height=(r.height+12)+'px';
+  tip.innerHTML='<div class="tt">'+esc(st.title)+'</div>'+esc(st.text)+
+   '<div class="tbar"><span class="grow">'+(i+1)+' / '+steps.length+'</span><button type="button" data-skip>Skip</button><button type="button" class="primary" data-next>'+(i<steps.length-1?'Next':'Done')+'</button></div>';
+  let x=Math.min(innerWidth-356,Math.max(16,r.left));
+  let y=r.bottom+14;if(y>innerHeight-190)y=Math.max(16,r.top-180);
+  tip.style.left=x+'px';tip.style.top=y+'px';
+  tip.querySelector('[data-skip]').onclick=end;
+  tip.querySelector('[data-next]').onclick=()=>{i++;if(i>=steps.length)end();else show();};
+ }
+ ov.onclick=end;
+ show();
 }
 
 /* ============ chrome wiring ============ */
@@ -1070,13 +1311,19 @@ function initApp(){
  $('logout').onclick=signOut;
  const pub=canDo('canPublish');
  $('save').style.display=pub?'':'none';
+ $('schedBtn').style.display=pub?'':'none';
  $('saveDraftBtn').textContent=pub?'Save':'Save — sends for review';
  $('undoBtn').onclick=()=>histRestore(-1);
  $('redoBtn').onclick=()=>histRestore(1);
+ $('schedBtn').onclick=openSchedule;
+ $('tourBtn').onclick=()=>startTour(true);
  renderSidebar();
  histPush();  /* baseline snapshot for undo */
  loadFrame();
  refreshDrafts();
+ /* fire any due scheduled publishes, then offer the tour to first-timers */
+ fetch('/api/cron',{method:'POST',headers:{'x-admin-key':key()}}).catch(()=>{});
+ setTimeout(()=>startTour(false),1500);
 }
 async function refreshDrafts(){
  const btn=$('draftsBtn');if(!btn)return;

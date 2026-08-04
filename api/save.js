@@ -32,10 +32,16 @@ module.exports = async (req, res) => {
      user without publish rights. Drafts live in the private users repo and
      never trigger a site rebuild. */
   if (asDraft === true || !A.can(me, 'canPublish')) {
-    const ok = await A.writeDraft(site.id, String(file), {
+    const draftData = {
       content, author: { id: me.id, email: me.email, name: me.name || '' },
       savedAt: new Date().toISOString(), baseSha: String(sha),
-    });
+    };
+    /* schedule (publishers only): api/cron.js publishes it when the time comes */
+    if (req.body.publishAt && A.can(me, 'canPublish')) {
+      const t = new Date(String(req.body.publishAt));
+      if (!isNaN(t)) draftData.publishAt = t.toISOString();
+    }
+    const ok = await A.writeDraft(site.id, String(file), draftData);
     if (!ok) return res.status(502).json({ error: 'could not store the draft' });
     return res.status(200).json({ ok: true, draft: true, sha: String(sha) });
   }

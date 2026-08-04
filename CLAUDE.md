@@ -15,7 +15,7 @@ REST; the 2FA QR encoder is embedded in `admin.html` as its own `<script>`.
 Deep architectural memory lives in Pinecone (index `claude-memory`, namespace
 `webflow`, records prefixed `jrdcms-`). Search it at session start.
 
-## Status (2026-08-03)
+## Status (2026-08-04)
 
 Shipped and live: UX overhaul (drag-and-drop uploads, add-at-top, live delete
 sync, publish countdown, upload size caps + incoming transformation), Phase 1
@@ -24,7 +24,26 @@ accounts (bootstrap owner, invites, resets, sessions), Phase 2 permissions
 draft-for-approval queue), Phase 3 TOTP 2FA (QR + manual key, backup codes,
 admin require/reset). Jeffrey's owner account has 2FA enabled.
 
-**Not configured yet:** `BREVO_API_KEY` / `MAIL_FROM_EMAIL` env vars — invites
+Editor v3 (2026-08-04): Save (draft) / Publish split — load.js prefers a
+saved draft so work persists across sessions (save.js draft:true writes it;
+live publish deletes it); undo/redo (snapshot history hooked on
+renderSidebar, Ctrl+Z/Y); autosave every 30s (drafts, preserves publishAt);
+on-page file-drop add/replace with buffer transfer (Files cloned across the
+iframe boundary fail to read — bytes are read in the iframe and transferred);
+on-page drag-reorder with a gold insertion divider; media library
+(api/media.js, Cloudinary Admin API); version history + restore
+(api/history.js, git commits per data file); focal point picker (stores a
+`#fp=x,y` suffix on the media value — build.js strips it from URLs and emits
+object-position; admin cdn()/cloudParts strip it too); alt-text nudges;
+first-visit tour (localStorage jrd-tour-done); scheduled publishing
+(draft.publishAt + api/cron.js, fired by the vercel.json daily cron with
+CRON_SECRET *and* opportunistic pokes from the admin every 5 min).
+GC-Windsor build.js chains stored crop transforms BEFORE the delivery
+transform (order matters: crop coords are in original pixels).
+
+**Not configured yet:** `CRON_SECRET` (any random string - Vercel then
+authenticates the daily cron; without it only the in-editor pokes fire
+scheduled publishes) and `BREVO_API_KEY` / `MAIL_FROM_EMAIL` env vars — invites
 currently copy their link to the clipboard instead of emailing. Jeffrey wants a
 sender that is NOT his GC Windsor address; options discussed: second verified
 sender in his existing Brevo account, or a separate Brevo account.
