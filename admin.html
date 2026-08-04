@@ -866,7 +866,15 @@ async function handleBridgeDrop(d){
   let bd=null;SECTIONS.forEach(s=>{(s.blocks||[]).forEach(b=>{if(b.kind==='arr'&&(b.file||s.file)===fn&&b.path===arrPath)bd=b;});});
   const mediaKey=bd?(bd.thumbField||(((bd.fields||[]).find(fd=>fd.type==='media')||{}).k)||null):null;
   if(!mediaKey){setMsg('This list has no image field to drop into.','err');return;}
-  const files=(d.files||[]).filter(f0=>f0 instanceof File);
+  /* the bridge sends raw {name,type,buf} payloads (transferred ArrayBuffers)
+     because cross-document cloned File handles can fail to read at upload
+     time ("Failed to fetch"); rebuild real Files from the bytes here.
+     Plain File objects are still accepted for backward compatibility. */
+  const files=(d.files||[]).map(x=>{
+   if(x instanceof File)return x;
+   if(x&&x.buf)try{return new File([x.buf],x.name||'image',{type:x.type||''});}catch(_){return null;}
+   return null;
+  }).filter(Boolean);
   if(!files.length)return;
   if(d.item){
    if(!arr[idx]){setMsg('Item not found — it was added since the last publish. Save & publish first.','err');return;}
