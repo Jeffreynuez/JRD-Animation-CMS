@@ -557,7 +557,7 @@ async function openMediaLibrary(onPick,opts={}){
  let cursor=null,total=0;
  async function page(){
   more.style.display='none';
-  const r=await api('/api/media?site='+encodeURIComponent(curSite.id)+(cursor?'&cursor='+encodeURIComponent(cursor):''));
+  const r=await api('/api/sign-upload?list=1&site='+encodeURIComponent(curSite.id)+(cursor?'&cursor='+encodeURIComponent(cursor):''));
   if(r.status!==200){info.textContent=r.json.error||'Could not load the library.';return;}
   (r.json.items||[]).forEach(it=>{
    const c=document.createElement('button');c.type='button';c.className='libcell';c.title=it.id;
@@ -1173,7 +1173,7 @@ async function showHistory(fn){
  bar.appendChild(info);bar.appendChild(cls);
  panel.appendChild(list);panel.appendChild(bar);ov.appendChild(panel);document.body.appendChild(ov);
  const close=()=>ov.remove();cls.onclick=close;ov.addEventListener('mousedown',e=>{if(e.target===ov)close();});
- const r=await api('/api/history?site='+encodeURIComponent(curSite.id)+'&file='+encodeURIComponent(fn));
+ const r=await api('/api/load?history=1&site='+encodeURIComponent(curSite.id)+'&file='+encodeURIComponent(fn));
  if(r.status!==200){info.textContent=r.json.error||'Could not load history.';return;}
  const vs=r.json.versions||[];
  info.textContent=vs.length?'Every published version. Restoring loads it into the editor — nothing goes live until you Publish.':'No published versions yet.';
@@ -1185,7 +1185,7 @@ async function showHistory(fn){
   row.onclick=async()=>{
    if(i===0){close();return;}
    if(!confirm('Load the version from '+when+' into the editor?\nYour current edits to this section are replaced (Undo brings them back). Nothing goes live until you Publish.'))return;
-   const r2=await api('/api/history?site='+encodeURIComponent(curSite.id)+'&file='+encodeURIComponent(fn)+'&at='+encodeURIComponent(v.sha));
+   const r2=await api('/api/load?site='+encodeURIComponent(curSite.id)+'&file='+encodeURIComponent(fn)+'&at='+encodeURIComponent(v.sha));
    if(r2.status!==200){info.textContent=r2.json.error||'Could not load that version.';return;}
    try{await ensureFile(fn);}catch(e){}
    if(!files[fn]){info.textContent='Could not open '+fn+'.';return;}
@@ -1243,7 +1243,7 @@ setInterval(async()=>{
  AUTOTICKS++;
  if(!curSite)return;
  /* poke the scheduler every 5 min so scheduled publishes fire near their time */
- if(AUTOTICKS%10===0)fetch('/api/cron',{method:'POST',headers:{'x-admin-key':key()}}).catch(()=>{});
+ if(AUTOTICKS%10===0)fetch('/api/drafts?cron=1',{method:'POST',headers:{'x-admin-key':key()}}).catch(()=>{});
  if(document.hidden||AUTOSAVING)return;
  const dirty=Object.entries(files).filter(([,st])=>st.dirty);
  if(!dirty.length)return;
@@ -1322,7 +1322,7 @@ function initApp(){
  loadFrame();
  refreshDrafts();
  /* fire any due scheduled publishes, then offer the tour to first-timers */
- fetch('/api/cron',{method:'POST',headers:{'x-admin-key':key()}}).catch(()=>{});
+ fetch('/api/drafts?cron=1',{method:'POST',headers:{'x-admin-key':key()}}).catch(()=>{});
  setTimeout(()=>startTour(false),1500);
 }
 async function refreshDrafts(){

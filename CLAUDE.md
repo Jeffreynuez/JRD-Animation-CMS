@@ -31,12 +31,12 @@ renderSidebar, Ctrl+Z/Y); autosave every 30s (drafts, preserves publishAt);
 on-page file-drop add/replace with buffer transfer (Files cloned across the
 iframe boundary fail to read — bytes are read in the iframe and transferred);
 on-page drag-reorder with a gold insertion divider; media library
-(api/media.js, Cloudinary Admin API); version history + restore
-(api/history.js, git commits per data file); focal point picker (stores a
+(sign-upload.js ?list=1, Cloudinary Admin API); version history + restore
+(load.js ?history=1, git commits per data file); focal point picker (stores a
 `#fp=x,y` suffix on the media value — build.js strips it from URLs and emits
 object-position; admin cdn()/cloudParts strip it too); alt-text nudges;
 first-visit tour (localStorage jrd-tour-done); scheduled publishing
-(draft.publishAt + api/cron.js, fired by the vercel.json daily cron with
+(draft.publishAt + drafts.js ?cron=1, fired by the vercel.json daily cron with
 CRON_SECRET *and* opportunistic pokes from the admin every 5 min).
 GC-Windsor build.js chains stored crop transforms BEFORE the delivery
 transform (order matters: crop coords are in original pixels).
@@ -74,6 +74,12 @@ nothing on the other sites until then).
   files were only written to disk, commit+push — never discard.
 
 ## Sharp edges
+
+- **Vercel Hobby caps deployments at 12 serverless functions**, and api/ is
+  at exactly 12 (underscore files are not functions). NEVER add a new api/
+  file - fold new server behaviour into an existing endpoint as a query-mode
+  (media library lives in sign-upload.js ?list=1, version history in load.js
+  ?history=1/?at=, the scheduled-publish sweep in drafts.js ?cron=1).
 
 - **users.json + drafts/ live in the PRIVATE `USERS_REPO`** — never move them
   to a public repo (password hashes, TOTP secrets, backup-code hashes).

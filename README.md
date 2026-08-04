@@ -90,7 +90,7 @@ vercel.json         cleanUrls so /admin serves admin.html; /api/* are functions
 | `MAIL_FROM_EMAIL`        | *(optional)* A **verified Brevo sender**. Avoid bare gmail addresses (deliverability). |
 | `MAIL_FROM_NAME`         | *(optional)* Email display name + 2FA issuer label. Default "JRD Site Editor". |
 | `ADMIN_URL`              | *(optional)* Base URL used in invite links.                    |
-| `CRON_SECRET`            | *(optional)* Random string; lets the daily Vercel cron authenticate to `/api/cron` for scheduled publishing. |
+| `CRON_SECRET`            | *(optional)* Random string; lets the daily Vercel cron authenticate to `/api/drafts?cron=1` for scheduled publishing. |
 
 ## Day-to-day
 

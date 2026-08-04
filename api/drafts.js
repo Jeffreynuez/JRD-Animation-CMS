@@ -5,11 +5,15 @@
 //   POST /api/drafts {action:'approve', site, file}  -> publish the draft to the site repo (admin)
 //   POST /api/drafts {action:'reject',  site, file}  -> discard the draft (admin)
 'use strict';
-const { getSite, canWrite, gh } = require('./_lib.js');
+const { getSite, getSites, canWrite, gh } = require('./_lib.js');
 const A = require('./_auth.js');
 
 module.exports = async (req, res) => {
   if (!A.configured(res)) return;
+  /* ?cron=1 -> publish due SCHEDULED drafts (folded in here to stay under the
+     Vercel Hobby 12-function cap). Auth: the Vercel cron's CRON_SECRET bearer,
+     or any signed-in user (the admin UI pokes this periodically). */
+  if (req.query.cron) return cronSweep(req, res);
   const me = await A.authUser(req).catch(() => null);
   if (!me) return res.status(401).json({ error: 'unauthorized' });
 
@@ -66,3 +70,46 @@ module.exports = async (req, res) => {
 
   res.status(400).json({ error: 'Unknown action.' });
 };
+
+async function cronSweep(req, res) {
+  const secret = process.env.CRON_SECRET || '';
+  const okCron = !!secret && req.headers.authorization === 'Bearer ' + secret;
+  const okUser = okCron ? true : !!(await A.authUser(req).catch(() => null));
+  if (!okCron && !okUser) return res.status(401).json({ error: 'unauthorized' });
+
+  const now = Date.now();
+  const published = [], failed = [];
+  let sites = [];
+  try { sites = await getSites(); } catch (e) { return res.status(502).json({ error: 'registry unavailable' }); }
+
+  for (const site of sites) {
+    let drafts = [];
+    try { drafts = await A.listDrafts(site.id); } catch (e) { continue; }
+    for (const d of drafts) {
+      /* only drafts WITH a schedule are touched - a client's for-review
+         draft (no publishAt) is never auto-published */
+      if (!d.publishAt || new Date(d.publishAt).getTime() > now) continue;
+      if (!canWrite(site, d.file)) continue;
+      try {
+        const full = await A.readDraft(site.id, d.file);
+        if (!full || !full.data || !full.data.content) continue;
+        const ref = site.branch ? '?ref=' + encodeURIComponent(site.branch) : '';
+        const cur = await gh(`/repos/${site.repo}/contents/data/${d.file}${ref}`);
+        if (cur.status !== 200) { failed.push(site.id + '/' + d.file); continue; }
+        const body = {
+          message: ('cms: scheduled publish ' + d.file + ' (set by ' + ((full.data.author && full.data.author.email) || 'editor') + ')').slice(0, 200) +
+            '\n\nCommitted via /admin CMS',
+          content: Buffer.from(JSON.stringify(full.data.content, null, 1) + '\n', 'utf8').toString('base64'),
+          sha: cur.json.sha,
+        };
+        if (site.branch) body.branch = site.branch;
+        const wr = await gh(`/repos/${site.repo}/contents/data/${d.file}`, { method: 'PUT', body: JSON.stringify(body) });
+        if (wr.status === 200 || wr.status === 201) {
+          await A.deleteDraft(site.id, d.file);
+          published.push(site.id + '/' + d.file);
+        } else failed.push(site.id + '/' + d.file);
+      } catch (e) { failed.push(site.id + '/' + d.file); }
+    }
+  }
+  res.status(200).json({ ok: true, published, failed });
+}
