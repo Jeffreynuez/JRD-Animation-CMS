@@ -67,8 +67,9 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 .f textarea.tall{min-height:108px;font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0}
 .f input:focus,.f textarea:focus,.f select:focus{outline:none;border-color:var(--cyan)}
 .f .hint{font-size:11px;color:var(--mut);margin-top:4px}
-.mediarow{display:flex;gap:10px;align-items:flex-start}
-.mediarow .grow{flex:1}
+.mediarow{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.mediarow .grow{flex:1 1 200px;min-width:170px}
+.mediarow button{white-space:nowrap}
 .prev{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
 .prev img,.prev video{height:70px;border-radius:8px;background:#1f2937;border:.5px solid var(--line);max-width:136px;object-fit:contain}
 .upbtn{flex:none;border-style:dashed}
