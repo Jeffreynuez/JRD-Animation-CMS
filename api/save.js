@@ -6,7 +6,7 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
   const me = await A.authUser(req).catch(() => null);
   if (!me) return res.status(401).json({ error: 'unauthorized' });
-  const { file, content, sha, message, site: siteId } = req.body || {};
+  const { file, content, sha, message, site: siteId, draft: asDraft } = req.body || {};
   const site = await getSite(siteId ? String(siteId) : '');
   if (!site) return res.status(400).json({ error: 'unknown site' });
   if (!A.siteAllowed(me, site.id)) return res.status(403).json({ error: 'Your account does not have access to this site.' });
@@ -28,8 +28,10 @@ module.exports = async (req, res) => {
   }
   if (text.length > 900000) return res.status(400).json({ error: 'content too large' });
 
-  /* users without publish rights save a DRAFT for admin review instead */
-  if (!A.can(me, 'canPublish')) {
+  /* draft saves: an explicit Save (draft:true, any user) or any save by a
+     user without publish rights. Drafts live in the private users repo and
+     never trigger a site rebuild. */
+  if (asDraft === true || !A.can(me, 'canPublish')) {
     const ok = await A.writeDraft(site.id, String(file), {
       content, author: { id: me.id, email: me.email, name: me.name || '' },
       savedAt: new Date().toISOString(), baseSha: String(sha),
@@ -49,5 +51,8 @@ module.exports = async (req, res) => {
   const r = await gh(`/repos/${site.repo}/contents/data/${file}`, { method: 'PUT', body: JSON.stringify(body) });
   if (r.status === 409) return res.status(409).json({ error: 'conflict — file changed since load; reload and re-apply' });
   if (r.status !== 200 && r.status !== 201) return res.status(502).json({ error: 'github write failed', status: r.status, detail: r.json && r.json.message });
+  /* published live: clear any saved draft so the editor stops shadowing the
+     live file with stale work-in-progress */
+  try { await A.deleteDraft(site.id, String(file)); } catch (e) { /* non-fatal */ }
   res.status(200).json({ ok: true, sha: r.json.content && r.json.content.sha, commit: r.json.commit && r.json.commit.html_url });
 };

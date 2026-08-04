@@ -19,5 +19,12 @@ module.exports = async (req, res) => {
   } catch (e) {
     return res.status(500).json({ error: 'repo file is not valid JSON' });
   }
+  /* a saved-but-unpublished draft shadows the live file in the editor, so
+     work-in-progress survives leaving and coming back. The sha returned is
+     always the LIVE file's sha - publishing uses it for conflict detection. */
+  let draft = null;
+  try { draft = await A.readDraft(site.id, file); } catch (e) { /* drafts unavailable - fall through to live */ }
+  if (draft && draft.data && draft.data.content)
+    return res.status(200).json({ content: draft.data.content, sha: r.json.sha, draft: true, draftAt: draft.data.savedAt || null, draftBy: (draft.data.author && draft.data.author.email) || null });
   res.status(200).json({ content, sha: r.json.sha });
 };
