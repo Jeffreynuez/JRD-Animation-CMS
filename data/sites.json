@@ -46,7 +46,9 @@
     "swapper.json",
     "products.json",
     "gallery.json",
-    "theme.json"
+    "spin.json",
+    "theme.json",
+    "styles.json"
    ]
   }
  ]

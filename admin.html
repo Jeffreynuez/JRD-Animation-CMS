@@ -375,7 +375,8 @@ function compileSchema(json){
 /* ============ state ============ */
 const files={};
 let curId='home';
-let curSite=null;   // selected site {id,label,liveUrl,schema}
+let curSite=null;   // selected site {id,label,liveUrl,schema,files}
+const siteHasFile=fn=>!!(curSite&&Array.isArray(curSite.files)&&curSite.files.length&&curSite.files.includes(fn));
 let SITES=[];       // registry from /api/sites
 const section=()=>SECTIONS.find(s=>s.id===curId);
 const resolve=(o,p)=>p?p.split('.').reduce((x,k)=>x&&x[k],o):o;
@@ -956,10 +957,12 @@ async function showSelection(d){
    const fd=f(pk.key,'Text',String(pk.obj[pk.key]||'').length>70?T.AREA:T.TEXT);
    const md=()=>{st.dirty=true;renderSidebar();};
    body.appendChild(renderField(fd,pk.obj,md,{onChange:(fdef,val)=>vApply(d.edit,val)}));
-   try{await ensureFile('styles.json');}catch(e){}
-   try{await ensureFile('theme.json');}catch(e){}
-   if(!files['styles.json'])files['styles.json']={content:{},sha:null,dirty:false};
-   body.appendChild(styleControls(d.edit));
+   if(siteHasFile('styles.json')){ /* colour/align styling only where the site can store + render it */
+    try{await ensureFile('styles.json');}catch(e){}
+    try{await ensureFile('theme.json');}catch(e){}
+    if(!files['styles.json'])files['styles.json']={content:{},sha:null,dirty:false};
+    body.appendChild(styleControls(d.edit));
+   }
    const tip=document.createElement('p');tip.className='msg';tip.textContent='Tip: you can also type directly on the page.';body.appendChild(tip);
   }
   $('selpanel').classList.add('open');
@@ -1111,43 +1114,49 @@ document.addEventListener('keydown',e=>{
  else if(e.key==='y'||e.key==='Y'){e.preventDefault();histRestore(1);}
 });
 
+const saveable=([fn,st])=>siteHasFile(fn); /* skip files this site's registry doesn't allow (e.g. stray styles.json) */
 /* ============ save (draft) / publish (live) ============
    Save stores work-in-progress as a draft in the private users repo: nothing
    goes live, no rebuild, and the editor restores it next visit (load prefers
    drafts). Publish commits to the site repo and clears the drafts. Users
    without publish rights only get Save — their drafts ARE the review queue. */
 async function saveDraftAll(){
- const dirty=Object.entries(files).filter(([,st])=>st.dirty);
+ const dirty=Object.entries(files).filter(([,st])=>st.dirty).filter(saveable);
  if(!dirty.length){setMsg('Nothing new to save.');return;}
  $('saveDraftBtn').disabled=true;
+ const fails=[];
  for(const [fn,st] of dirty){
   setMsg('Saving '+fn+'…');
   const body={file:fn,content:st.content,sha:st.sha,draft:true,message:'cms: draft '+fn,site:curSite.id};
   if(st.publishAt)body.publishAt=st.publishAt;   /* keep an existing schedule */
   const r=await api('/api/save',{method:'POST',body:JSON.stringify(body)});
-  if(r.status!==200){setMsg('Save failed on '+fn+': '+(r.json.error||r.status),'err');$('saveDraftBtn').disabled=false;return;}
+  if(r.status!==200){fails.push(fn+' ('+(r.json.error||r.status)+')');continue;}
   st.dirty=false;st.draft=true;
  }
  $('saveDraftBtn').disabled=false;renderSidebar();refreshDrafts();
- setMsg(canDo('canPublish')
+ if(fails.length)setMsg('Saved with problems — '+fails.join('; '),'err');
+ else setMsg(canDo('canPublish')
   ?'Saved ✓ — kept in the editor, not live yet. Publish when you are ready.'
   :'Saved ✓ — sent for review. Your admin will approve and publish.','ok');
 }
 async function publishAll(){
- const list=Object.entries(files).filter(([,st])=>st.dirty||st.draft);
+ const list=Object.entries(files).filter(([,st])=>st.dirty||st.draft).filter(saveable);
  if(!list.length){setMsg('Nothing to publish.');return;}
  if(!confirm('Publish changes to: '+list.map(([fn])=>fn).join(', ')+'?\nThe live site rebuilds automatically (~1 min).'))return;
  $('save').disabled=true;
+ const fails=[];let okCount=0;
  for(const [fn,st] of list){
   setMsg('Publishing '+fn+'…');
   const r=await api('/api/save',{method:'POST',body:JSON.stringify({file:fn,content:st.content,sha:st.sha,message:'cms: update '+fn,site:curSite.id})});
-  if(r.status===409){setMsg('Conflict on '+fn+' — it changed elsewhere. Sign out/in to reload.','err');$('save').disabled=false;return;}
-  if(r.status!==200){setMsg('Publish failed on '+fn+': '+(r.json.error||r.status),'err');$('save').disabled=false;return;}
-  if(r.json.draft){st.dirty=false;st.draft=true;continue;} /* server downgraded to draft (no publish rights) */
-  st.sha=r.json.sha;st.dirty=false;st.draft=false;st.publishAt=null;
+  if(r.status===409){fails.push(fn+' (changed elsewhere — sign out/in to reload it)');continue;}
+  if(r.status!==200){fails.push(fn+' ('+(r.json.error||r.status)+')');continue;}
+  if(r.json.draft){st.dirty=false;st.draft=true;okCount++;continue;} /* server downgraded to draft (no publish rights) */
+  st.sha=r.json.sha;st.dirty=false;st.draft=false;st.publishAt=null;okCount++;
  }
  $('save').disabled=false;renderSidebar();refreshDrafts();
- startPublishWatch();
+ if(fails.length)setMsg((okCount?'Partly published — problems with: ':'Publish failed — ')+fails.join('; '),'err');
+ if(okCount&&!fails.length)startPublishWatch();
+ else if(okCount)setTimeout(startPublishWatch,3500);
 }
 let pubTimer=null;
 function startPublishWatch(){
@@ -1200,7 +1209,7 @@ async function showHistory(fn){
 
 /* ============ scheduled publishing ============ */
 function openSchedule(){
- const list=Object.entries(files).filter(([,st])=>st.dirty||st.draft);
+ const list=Object.entries(files).filter(([,st])=>st.dirty||st.draft).filter(saveable);
  if(!list.length){setMsg('Nothing to schedule — make some edits first.');return;}
  const ov=document.createElement('div');ov.className='cropov';
  const panel=document.createElement('div');panel.className='croppanel';panel.style.minWidth='min(440px,92vw)';
@@ -1226,7 +1235,7 @@ function openSchedule(){
  ov.addEventListener('mousedown',e=>{if(e.target===ov)close();});
 }
 async function schedSave(publishAt){
- const list=Object.entries(files).filter(([,st])=>st.dirty||st.draft);
+ const list=Object.entries(files).filter(([,st])=>st.dirty||st.draft).filter(saveable);
  for(const [fn,st] of list){
   const body={file:fn,content:st.content,sha:st.sha,draft:true,message:'cms: schedule '+fn,site:curSite.id};
   if(publishAt)body.publishAt=publishAt;
@@ -1246,7 +1255,7 @@ setInterval(async()=>{
  /* poke the scheduler every 5 min so scheduled publishes fire near their time */
  if(AUTOTICKS%10===0)fetch('/api/drafts?cron=1',{method:'POST',headers:{'x-admin-key':key()}}).catch(()=>{});
  if(document.hidden||AUTOSAVING)return;
- const dirty=Object.entries(files).filter(([,st])=>st.dirty);
+ const dirty=Object.entries(files).filter(([,st])=>st.dirty).filter(saveable);
  if(!dirty.length)return;
  AUTOSAVING=true;
  try{
@@ -1254,7 +1263,7 @@ setInterval(async()=>{
    const body={file:fn,content:st.content,sha:st.sha,draft:true,message:'cms: autosave '+fn,site:curSite.id};
    if(st.publishAt)body.publishAt=st.publishAt;   /* keep an existing schedule */
    const r=await api('/api/save',{method:'POST',body:JSON.stringify(body)});
-   if(r.status!==200)return;
+   if(r.status!==200)continue;
    st.dirty=false;st.draft=true;
   }
   renderSidebar();
