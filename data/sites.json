@@ -1,55 +1,74 @@
 {
- "version": 1,
- "sites": [
-  {
-   "id": "jrd",
-   "label": "JRD Portfolio",
-   "repo": "Jeffreynuez/JRD-Online_Portfolio",
-   "branch": "main",
-   "liveUrl": "https://jrd-online-portfolio.vercel.app",
-   "schema": "_schema.json",
-   "files": [
-    "pages.json",
-    "home.json",
-    "apps.json",
-    "animation.json",
-    "ai-workflows.json",
-    "rigging.json",
-    "resume.json",
-    "theme.json",
-    "styles.json"
-   ]
-  },
-  {
-   "id": "proguild",
-   "label": "Proguild",
-   "repo": "Jeffreynuez/Proguild",
-   "branch": "main",
-   "liveUrl": "https://proguild.vercel.app/",
-   "schema": "_schema.json",
-   "files": [
-    "pages.json",
-    "team.json",
-    "privacy.json",
-    "theme.json"
-   ]
-  },
-  {
-   "id": "gcwindsor",
-   "label": "GC Windsor",
-   "repo": "Jeffreynuez/GC-Windsor",
-   "branch": "main",
-   "liveUrl": "https://gc-windsor.vercel.app",
-   "schema": "_schema.json",
-   "files": [
-    "pages.json",
-    "swapper.json",
-    "products.json",
-    "gallery.json",
-    "spin.json",
-    "theme.json",
-    "styles.json"
-   ]
-  }
- ]
+  "version": 1,
+  "sites": [
+    {
+      "id": "jrd",
+      "label": "JRD Portfolio",
+      "repo": "Jeffreynuez/JRD-Online_Portfolio",
+      "branch": "main",
+      "liveUrl": "https://jrd-online-portfolio.vercel.app",
+      "schema": "_schema.json",
+      "files": [
+        "pages.json",
+        "home.json",
+        "apps.json",
+        "animation.json",
+        "ai-workflows.json",
+        "rigging.json",
+        "resume.json",
+        "theme.json",
+        "styles.json"
+      ]
+    },
+    {
+      "id": "proguild",
+      "label": "Proguild",
+      "repo": "Jeffreynuez/Proguild",
+      "branch": "main",
+      "liveUrl": "https://proguild.vercel.app/",
+      "schema": "_schema.json",
+      "files": [
+        "pages.json",
+        "team.json",
+        "privacy.json",
+        "theme.json"
+      ]
+    },
+    {
+      "id": "gcwindsor",
+      "label": "GC Windsor",
+      "repo": "Jeffreynuez/GC-Windsor",
+      "branch": "main",
+      "liveUrl": "https://gc-windsor.vercel.app",
+      "schema": "_schema.json",
+      "files": [
+        "pages.json",
+        "swapper.json",
+        "products.json",
+        "gallery.json",
+        "spin.json",
+        "theme.json",
+        "styles.json"
+      ]
+    },
+    {
+      "id": "salee",
+      "label": "Salee Starbuck",
+      "repo": "Jeffreynuez/Saleestarbuck",
+      "branch": "main",
+      "liveUrl": "https://saleestarbuck.vercel.app",
+      "schema": "_schema.json",
+      "files": [
+        "pages.json",
+        "home.json",
+        "posts.json",
+        "testimonials.json",
+        "review.json",
+        "refer.json",
+        "contact.json",
+        "notfound.json",
+        "theme.json"
+      ]
+    }
+  ]
 }
