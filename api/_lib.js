@@ -77,7 +77,9 @@ async function gh(path, opts = {}) {
     },
   });
   const json = await res.json().catch(() => ({}));
-  return { status: res.status, json };
+  /* headers are returned so callers can read things the body does not carry,
+     e.g. the Location of GitHub's zipball redirect. Nothing else reads it. */
+  return { status: res.status, json, headers: res.headers };
 }
 
 module.exports = { HOME_REPO, HOME_BRANCH, REGISTRY_PATH, bundledSites, getRegistry, getSites, getSite, canRead, canWrite, checkAuth, gh };

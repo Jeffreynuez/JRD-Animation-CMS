@@ -107,7 +107,8 @@ on every write, so anything new must be added there too).
   at exactly 12 (underscore files are not functions). NEVER add a new api/
   file - fold new server behaviour into an existing endpoint as a query-mode
   (media library lives in sign-upload.js ?list=1, version history in load.js
-  ?history=1/?at=, the scheduled-publish sweep in drafts.js ?cron=1).
+  ?history=1/?at=, the scheduled-publish sweep in drafts.js ?cron=1, the
+  source-code export in sites.js ?download=<siteId>).
 
 - **users.json + drafts/ live in the PRIVATE `USERS_REPO`** — never move them
   to a public repo (password hashes, TOTP secrets, backup-code hashes).
@@ -119,9 +120,23 @@ on every write, so anything new must be added there too).
 - Section grants map to files via each site's `data/_schema.json`, cached 60s
   in `_auth.js` (`schemaCache`). New schema sections take up to a minute to
   reflect in permissions.
-- `canPublish` and `canTheme` are **opt-in** caps (default false);
+- `canPublish`, `canTheme` and `canDownload` are **opt-in** caps (default
+  false), listed in `OPT_IN_CAPS`;
   `canUpload` and `canDelete` are **default-on** (false only when explicitly
-  set). `can()` in `_auth.js` is the single source of truth.
+  set). `can()` in `_auth.js` is the single source of truth, and `OPT_IN_CAPS`
+  in `admin.html` mirrors it. Change one and you must change the other. A new
+  cap MUST be added to `OPT_IN_CAPS`: `can()` treats anything unlisted as on,
+  so a cap you forget switches itself on for every existing account the moment
+  it deploys.
+- **Site download** (`canDownload`): puts a Download button beside Delete on
+  the picker so a client can pull their own site's source. `sites.js
+  ?download=<id>` checks `siteAllowed` then `canDownload`, then asks GitHub for
+  `/repos/:repo/zipball/:branch` with `redirect: 'manual'` and returns the
+  signed `codeload.github.com` URL from the `Location` header. It deliberately
+  does NOT stream the zip: that would hit the 4.5 MB serverless response cap
+  and the 10 s execution limit. `gh()` in `_lib.js` returns `headers` so the
+  redirect can be read. Role presets all leave `canDownload: false`, so
+  granting an export is always an explicit tick, never inherited from a role.
 - Newly invited users have `sites: []` — access to nothing until the admin
   grants it in their Access sheet. This is intentional; don't "fix" it.
 - The legacy `x-admin-key` header still authenticates as a synthetic owner

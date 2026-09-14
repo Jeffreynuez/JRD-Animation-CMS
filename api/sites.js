@@ -1,8 +1,11 @@
 'use strict';
 /* Site registry endpoint for /admin.
-   GET  -> full site list for the authenticated admin (no token — tokens aren't in the registry).
-   POST -> { op:'add'|'edit', site:{...} } or { op:'delete', id } — mutates data/sites.json in the home repo.
-   Auth-gated. The browser sends site details; the server validates and commits. */
+   GET              -> full site list for the authenticated admin (no token — tokens aren't in the registry).
+   GET ?download=id -> a short-lived GitHub archive link for that site's repo (see downloadSite).
+   POST             -> { op:'add'|'edit', site:{...} } or { op:'delete', id } — mutates data/sites.json in the home repo.
+   Auth-gated. The browser sends site details; the server validates and commits.
+   New behaviour rides here as a query mode: Vercel Hobby caps this project at 12
+   serverless functions and api/ is already at 12, so no new file may be added. */
 const { getRegistry, HOME_REPO, HOME_BRANCH, REGISTRY_PATH, checkAuth, gh } = require('./_lib.js');
 
 const SLUG = /^[a-z0-9][a-z0-9-]*$/;
@@ -27,6 +30,33 @@ async function resolveFiles(repo, branch, schema, files) {
   return { error: 'Could not read data/' + schema + ' from ' + repo + ' (' + sr.status + '). Check the repo, branch, and token scope.' };
 }
 
+/* GET ?download=<siteId> -> { url, filename, repo, branch }
+   Hands back GitHub's signed archive URL rather than streaming the zip through
+   this function. Streaming would hit two hard limits: the 4.5 MB serverless
+   response cap and the 10 s execution limit. /repos/:owner/:repo/zipball/:ref
+   answers 302 with a short-lived signed codeload.github.com URL that needs no
+   token, so the browser pulls the bytes straight from GitHub.
+   Gated twice: the caller must be allowed on the site AND hold canDownload,
+   which is opt-in. Any account may be granted it: the site belongs to the
+   client, so exporting it is theirs to do. */
+async function downloadSite(req, res, me, reg, A) {
+  const id = String(req.query.download || '').trim();
+  const site = reg.sites.find(s => s.id === id);
+  if (!site) return res.status(404).json({ error: 'No site with id "' + id + '".' });
+  if (!A.siteAllowed(me, site.id)) return res.status(403).json({ error: 'You do not have access to that site.' });
+  if (!A.can(me, 'canDownload')) return res.status(403).json({ error: 'Your account cannot download site code. Ask the owner to switch on "Download site code" for your account.' });
+
+  const branch = site.branch || 'main';
+  const zr = await gh(`/repos/${site.repo}/zipball/${encodeURIComponent(branch)}`, { redirect: 'manual' });
+  const loc = (zr.headers && typeof zr.headers.get === 'function') ? zr.headers.get('location') : '';
+  if (!loc) {
+    if (zr.status === 404) return res.status(404).json({ error: 'GitHub has no ' + branch + ' branch in ' + site.repo + ', or the configured token cannot see that repo.' });
+    return res.status(502).json({ error: 'GitHub did not return an archive link (' + zr.status + '). Try again in a moment.' });
+  }
+  const stamp = new Date().toISOString().slice(0, 10);
+  return res.status(200).json({ url: loc, filename: site.id + '-' + branch + '-' + stamp + '.zip', repo: site.repo, branch });
+}
+
 async function commitRegistry(sites, sha, message) {
   const text = JSON.stringify({ version: 1, sites }, null, 1) + '\n';
   const body = {
@@ -47,8 +77,10 @@ module.exports = async (req, res) => {
   if (!me) return res.status(401).json({ error: 'unauthorized' });
   const reg = await getRegistry();
 
-  if (!req.method || req.method === 'GET')
+  if (!req.method || req.method === 'GET') {
+    if (req.query && req.query.download) return downloadSite(req, res, me, reg, A);
     return res.status(200).json({ sites: reg.sites.filter(s => A.siteAllowed(me, s.id)).map(full) });
+  }
   if (req.method !== 'POST') return res.status(405).json({ error: 'GET or POST only' });
   if (!A.isAdmin(me)) return res.status(403).json({ error: 'Admins only.' });
 

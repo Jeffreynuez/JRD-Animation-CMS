@@ -1495,6 +1495,7 @@ function siteCard(s){
  const mk=(t,fn,cls)=>{const x=document.createElement('button');x.textContent=t;if(cls)x.className=cls;x.onclick=e=>{e.stopPropagation();fn();};acts.appendChild(x);};
  mk('Open',()=>selectSite(s));
  if(meIsAdmin()){mk('Edit',()=>openEditSite(s));mk('Delete',()=>deleteSite(s),'danger');}
+ if(canDo('canDownload'))mk('Download',function(){downloadSiteCode(s,this);});
  const on=isPinned(s.id);
  const pin=document.createElement('button');pin.className='sc-pin'+(on?' on':'');
  pin.textContent=on?'★':'☆';
@@ -1628,7 +1629,9 @@ async function selectSite(s){
 }
 /* ============ auth gate v2 (accounts + sessions) ============ */
 let ME=null;
-const canDo=cap=>{if(!ME)return true;if(ME.role==='owner'||ME.role==='admin')return true;const c=ME.caps||{};if(cap==='canPublish'||cap==='canTheme')return c[cap]===true;return c[cap]!==false;};
+/* mirrors OPT_IN_CAPS in api/_auth.js; keep the two lists in step */
+const OPT_IN_CAPS=['canPublish','canTheme','canDownload'];
+const canDo=cap=>{if(!ME)return true;if(ME.role==='owner'||ME.role==='admin')return true;const c=ME.caps||{};if(OPT_IN_CAPS.indexOf(cap)>=0)return c[cap]===true;return c[cap]!==false;};
 const meIsAdmin=()=>!!ME&&(ME.role==='owner'||ME.role==='admin');
 function sectionVisible(sec){
  if(!sec||sec.group)return true;
@@ -1737,9 +1740,11 @@ async function showUsers(){
 }
 /* --- per-user access editor (sites, sections, capabilities, presets) --- */
 const PRESETS={
- 'site-admin':{sections:'*',caps:{canPublish:true,canDelete:true,canUpload:true,canTheme:true}},
- 'editor':{sections:'*',caps:{canPublish:true,canDelete:true,canUpload:true,canTheme:false}},
- 'contributor':{sections:'*',caps:{canPublish:false,canDelete:false,canUpload:true,canTheme:false}},
+ /* canDownload stays false in every preset: exporting the source is always a
+    deliberate tick, never something a role grants on your behalf. */
+ 'site-admin':{sections:'*',caps:{canPublish:true,canDelete:true,canUpload:true,canTheme:true,canDownload:false}},
+ 'editor':{sections:'*',caps:{canPublish:true,canDelete:true,canUpload:true,canTheme:false,canDownload:false}},
+ 'contributor':{sections:'*',caps:{canPublish:false,canDelete:false,canUpload:true,canTheme:false,canDownload:false}},
 };
 async function siteSections(siteId){
  const site=SITES.find(x=>x.id===siteId);if(!site)return[];
@@ -1752,7 +1757,7 @@ function openAccess(u,row){
  if(old&&old.classList.contains('accessbox')){old.remove();return;}
  document.querySelectorAll('.accessbox').forEach(x=>x.remove());
  const box=document.createElement('div');box.className='accessbox';
- const st={sites:(u.sites||[]).slice(),perms:JSON.parse(JSON.stringify(u.perms||{})),caps:Object.assign({canPublish:false,canDelete:true,canUpload:true,canTheme:false},u.caps||{}),req:u.totpRequired===true};
+ const st={sites:(u.sites||[]).slice(),perms:JSON.parse(JSON.stringify(u.perms||{})),caps:Object.assign({canPublish:false,canDelete:true,canUpload:true,canTheme:false,canDownload:false},u.caps||{}),req:u.totpRequired===true};
  const h=t=>{const x=document.createElement('div');x.className='acc-h';x.textContent=t;return x;};
  const cb=(label,checked,fn)=>{const l=document.createElement('label');l.className='uchk';const c=document.createElement('input');c.type='checkbox';c.checked=checked;c.onchange=()=>fn(c.checked);const sp=document.createElement('span');sp.textContent=label;l.appendChild(c);l.appendChild(sp);return l;};
  const grid=()=>{const g=document.createElement('div');g.className='acc-grid';return g;};
@@ -1806,10 +1811,13 @@ function openAccess(u,row){
   cg.appendChild(cb('Delete items',st.caps.canDelete!==false,v=>{st.caps.canDelete=v;}));
   cg.appendChild(cb('Upload media',st.caps.canUpload!==false,v=>{st.caps.canUpload=v;}));
   cg.appendChild(cb('Edit theme / design tokens',st.caps.canTheme===true,v=>{st.caps.canTheme=v;}));
+  cg.appendChild(cb('Download site code',st.caps.canDownload===true,v=>{st.caps.canDownload=v;}));
   body.appendChild(cg);
   const note=document.createElement('p');note.className='msg';note.style.cssText='margin:6px 2px 0;font-size:11px;color:#64748b';
   note.textContent='Publish off = their saves wait in your review queue (Drafts).';
-  body.appendChild(note);
+  const note2=document.createElement('p');note2.className='msg';note2.style.cssText='margin:3px 2px 0;font-size:11px;color:#64748b';
+  note2.textContent='Download site code = a Download button on their picker that pulls that site\u2019s full source as a zip from GitHub.';
+  body.appendChild(note);body.appendChild(note2);
   body.appendChild(h('Security'));
   body.appendChild(cb('Require two-factor authentication (they must enroll at next sign-in)',st.req===true,v=>{st.req=v;}));
   if(u.twoFactor){
@@ -1925,6 +1933,21 @@ async function deleteSite(s){
  SITES=(r.json&&r.json.sites)||SITES;
  if(sessionStorage.getItem('jrd-admin-site')===s.id)sessionStorage.removeItem('jrd-admin-site');
  renderPicker();
+}
+/* Pull the site's source from GitHub. The server hands back a short-lived signed
+   codeload link rather than streaming the zip through the function, so the bytes
+   travel browser <- GitHub directly and never touch Vercel. */
+async function downloadSiteCode(s,btn){
+ const was=btn?btn.textContent:'';
+ if(btn){btn.disabled=true;btn.textContent='Preparing\u2026';}
+ try{
+  const r=await api('/api/sites?download='+encodeURIComponent(s.id));
+  if(r.status!==200||!r.json||!r.json.url){alert('Download failed: '+((r.json&&r.json.error)||r.status));return;}
+  const a=document.createElement('a');
+  a.href=r.json.url;a.download=r.json.filename||(s.id+'.zip');a.rel='noopener';
+  document.body.appendChild(a);a.click();a.remove();
+ }catch(e){alert('Download failed: '+(e&&e.message?e.message:e));}
+ finally{if(btn){btn.disabled=false;btn.textContent=was;}}
 }
 $('as-add').onclick=submitAddSite;
 $('as-cancel').onclick=closeAddSite;

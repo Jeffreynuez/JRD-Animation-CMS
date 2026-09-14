@@ -179,11 +179,15 @@ function siteAllowed(u, siteId) {
   const s = u.sites || [];
   return s.includes('*') || s.includes(siteId);
 }
-/* caps: canPublish + canTheme are OPT-IN; canUpload + canDelete default ON */
+/* caps: canPublish + canTheme + canDownload are OPT-IN; canUpload + canDelete default ON.
+   canDownload lets an account pull its own site's source as a zip from the picker.
+   It is opt-in because can() treats an unlisted cap as ON, and a default-ON
+   export right would switch itself on for every existing account on deploy. */
+const OPT_IN_CAPS = ['canPublish', 'canTheme', 'canDownload'];
 function can(u, cap) {
   if (isAdmin(u)) return true;
   const c = (u && u.caps) || {};
-  if (cap === 'canPublish' || cap === 'canTheme') return c[cap] === true;
+  if (OPT_IN_CAPS.indexOf(cap) >= 0) return c[cap] === true;
   return c[cap] !== false;
 }
 /* section grants -> the data files they map to (per the site's own schema) */
