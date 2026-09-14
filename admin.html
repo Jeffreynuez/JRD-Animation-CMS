@@ -87,7 +87,11 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 .gate h1{font-size:22px;margin:8px 0 18px}
 .gate input{width:100%;font:14px/1 system-ui;padding:12px;border-radius:8px;border:1px solid rgba(148,163,184,.35);background:#0d1117;color:#f1f5f9;margin-bottom:14px}
 .gate .err{color:#fca5a5;font-size:12px;min-height:16px;margin-bottom:8px}
-#sitelist{display:flex;flex-direction:column;gap:12px}
+#sitelist{display:flex;flex-direction:column;gap:12px;overflow-y:auto;overflow-x:hidden;flex:1 1 auto;min-height:0;padding:2px 6px 6px 2px;scrollbar-width:thin;scrollbar-color:#334155 transparent}
+#sitelist::-webkit-scrollbar{width:10px}
+#sitelist::-webkit-scrollbar-track{background:transparent}
+#sitelist::-webkit-scrollbar-thumb{background:#334155;border-radius:6px;border:3px solid #0f172a}
+#sitelist::-webkit-scrollbar-thumb:hover{background:#475569}
 .sitecard{display:flex;align-items:stretch;gap:14px;text-align:left;background:#0d1117;border:1px solid rgba(96,165,250,.22);border-radius:13px;padding:12px;cursor:pointer;width:100%}
 .sitecard:hover{border-color:var(--cyan-d);background:#111c2e}
 .sc-thumb{position:relative;flex:none;width:200px;height:124px;border-radius:9px;overflow:hidden;background:#0b1220;border:1px solid #1e293b}
@@ -102,6 +106,56 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 .sc-actions button.danger:hover{color:#fca5a5;border-color:#7f1d1d}
 .sitecard-add{align-items:center;justify-content:center;border-style:dashed;border-color:#334155;min-height:56px}
 .sitecard-add .sc-name{color:#94a3b8}
+/* picker chrome: fixed head, scrolling list, fixed footer */
+.gate .pbox{display:flex;flex-direction:column;max-height:92vh;padding:24px 24px 16px}
+.phead{flex:none}
+.pctl{display:flex;gap:8px;align-items:center;margin:0 0 8px}
+.gate .box .pctl input[type=search]{flex:1 1 auto;width:auto;min-width:0;margin:0;padding:10px 12px}
+.gate .box .pctl select{flex:none;width:auto;margin:0;padding:9px 10px;font-size:12px}
+.gate .box .pctl button{flex:none;white-space:nowrap;padding:9px 12px}
+.pcount{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#64748b;text-align:left;min-height:13px;margin:0 0 10px}
+.pfoot{flex:none;display:flex;gap:10px;margin-top:14px;padding-top:14px;border-top:.5px solid #263042}
+.sitecard{position:relative}
+.sitecard.kb{border-color:var(--cyan-d);background:#111c2e;box-shadow:0 0 0 1px var(--cyan-d)}
+.sc-group{display:flex;align-items:center;gap:9px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#64748b;text-align:left;margin:8px 0 -2px}
+.sc-group:first-child{margin-top:0}
+.sc-group::after{content:'';flex:1;height:1px;background:#1e293b}
+.sc-meta{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.07em;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc-pin{position:absolute;top:7px;right:8px;background:transparent;border:0;padding:2px 5px;font-size:13px;line-height:1;color:#3f4b5f;cursor:pointer}
+.sc-pin:hover{color:#cbd5e1;border:0}
+.sc-pin.on{color:#fbbf24}
+.sc-empty{color:#64748b;font-size:13px;text-align:left;padding:20px 2px;line-height:1.6}
+/* compact density: no preview frames, one line per site */
+#sitelist.dense{gap:6px}
+#sitelist.dense .sitecard{padding:8px 12px;align-items:center;gap:12px}
+#sitelist.dense .sc-thumb{display:none}
+#sitelist.dense .sc-body{flex-direction:row;align-items:center;gap:12px}
+#sitelist.dense .sc-name{flex:none;font-size:13px;max-width:42%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sitelist.dense .sc-url{flex:1 1 auto}
+#sitelist.dense .sc-meta{display:none}
+#sitelist.dense .sc-actions{margin-top:0;flex:none}
+#sitelist.dense .sc-actions button{padding:5px 9px;font-size:10px}
+#sitelist.dense .sc-pin{position:static;margin-left:2px}
+#sitelist.dense .sitecard-add{padding:10px 12px;min-height:0}
+.sc-name{padding-right:20px}
+#sitelist.dense .sc-name{padding-right:0}
+/* edge shading so it is obvious the list continues past the fold */
+#sitelist.more-up{box-shadow:inset 0 11px 10px -11px #000c}
+#sitelist.more-down{box-shadow:inset 0 -11px 10px -11px #000c}
+#sitelist.more-up.more-down{box-shadow:inset 0 11px 10px -11px #000c,inset 0 -11px 10px -11px #000c}
+/* narrow screens: drop the preview frames and let each row breathe */
+@media (max-width:560px){
+ .gate .pbox{padding:18px 16px 14px}
+ .pctl{flex-wrap:wrap}
+ .gate .box .pctl input[type=search]{flex:1 1 100%}
+ .gate .box .pctl select{flex:1 1 auto}
+ .gate .box .pctl #site-density{display:none}
+ #sitelist .sc-thumb{display:none}
+ #sitelist .sitecard{padding:11px 12px;align-items:flex-start;gap:0}
+ #sitelist .sc-name{font-size:14px}
+ #sitelist .sc-meta{white-space:normal}
+ #sitelist .sc-actions{margin-top:9px;flex-wrap:wrap}
+}
 .gate textarea{width:100%;font:13px/1.5 system-ui;padding:11px;border-radius:8px;border:1px solid rgba(148,163,184,.35);background:#0d1117;color:#f1f5f9;margin-bottom:14px;resize:vertical}
 .as-l{display:block;text-align:left;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#94a3b8;margin:0 0 5px}
 .as-opt{text-transform:none;letter-spacing:0;color:#64748b}
@@ -217,11 +271,23 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 </div>
 
 <div id="picker" class="gate" style="display:none">
-  <div class="box" style="width:min(640px,92vw)">
-    <div class="mono" style="color:#38bdf8">— Choose a site</div>
-    <h1 style="margin-bottom:18px">Your websites</h1>
+  <div class="box pbox" style="width:min(760px,94vw)">
+    <div class="phead">
+      <div class="mono" style="color:#38bdf8">— Choose a site</div>
+      <h1 style="margin:8px 0 14px">Your websites</h1>
+      <div class="pctl">
+        <input id="site-q" type="search" placeholder="Search name, group, repo or URL" autocomplete="off" spellcheck="false" aria-label="Search sites">
+        <select id="site-sort" title="How the list is ordered">
+          <option value="group">Group</option>
+          <option value="az">A to Z</option>
+          <option value="recent">Recently opened</option>
+        </select>
+        <button class="ghost" id="site-density" title="Switch between preview cards and a compact list">Compact</button>
+      </div>
+      <div class="pcount" id="site-count"></div>
+    </div>
     <div id="sitelist"></div>
-    <div style="display:flex;gap:10px;margin-top:18px">
+    <div class="pfoot">
       <button class="ghost" id="picker-users" style="display:none">&#128101; Manage users</button>
       <button class="ghost" id="picker-logout">Sign out</button>
     </div>
@@ -243,6 +309,9 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
     <input id="as-branch" placeholder="main" value="main" autocomplete="off">
     <label class="as-l">Live URL</label>
     <input id="as-url" placeholder="https://my-site.vercel.app" autocomplete="off">
+    <label class="as-l">Group <span class="as-opt">(optional, groups the site picker)</span></label>
+    <input id="as-group" placeholder="Clients" autocomplete="off" list="as-groups">
+    <datalist id="as-groups"></datalist>
     <label class="as-l">Editable files <span class="as-opt">(optional — one per line)</span></label>
     <textarea id="as-files" rows="3" placeholder="pages.json&#10;home.json"></textarea>
     <div class="err" id="as-err"></div>
@@ -1370,42 +1439,170 @@ function showDrafts(drafts){
 }
 
 /* ============ site picker ============ */
+/* Picker preferences (sort, density, pins, last-opened) live in localStorage:
+   per browser, no server round trip, no new serverless function. Groups are the
+   one piece that is shared, and they ride along in data/sites.json. */
+const PK={sort:'jrd-pick-sort',dense:'jrd-pick-dense',pins:'jrd-pick-pins',seen:'jrd-pick-seen'};
+const lsGet=(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:v;}catch(e){return d;}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+const lsJSON=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v||d;}catch(e){return d;}};
+let PICK={q:'',sort:lsGet(PK.sort,'group'),dense:lsGet(PK.dense,'0')==='1',kb:-1,rows:[]};
+let PINS=lsJSON(PK.pins,[]),SEEN=lsJSON(PK.seen,{});
+const isPinned=id=>PINS.indexOf(id)>=0;
+const groupOf=s=>String(s.group||'').trim()||'Ungrouped';
+function togglePin(id){PINS=isPinned(id)?PINS.filter(x=>x!==id):PINS.concat([id]);lsSet(PK.pins,JSON.stringify(PINS));renderPicker();}
+function markSeen(id){SEEN[id]=Date.now();lsSet(PK.seen,JSON.stringify(SEEN));}
+function seenLabel(ts){
+ if(!ts)return '';
+ const m=Math.round((Date.now()-ts)/60000);
+ if(m<2)return 'opened just now';
+ if(m<60)return 'opened '+m+'m ago';
+ const hh=Math.round(m/60);if(hh<24)return 'opened '+hh+'h ago';
+ const d=Math.round(hh/24);if(d<31)return 'opened '+d+'d ago';
+ return 'opened '+Math.round(d/30)+'mo ago';
+}
+function siteMatches(s,terms){
+ if(!terms.length)return true;
+ const hay=(s.label+' '+s.id+' '+(s.group||'')+' '+(s.repo||'')+' '+(s.liveUrl||'')).toLowerCase();
+ return terms.every(t=>hay.indexOf(t)>=0);
+}
+function siteCard(s){
+ const card=document.createElement('div');card.className='sitecard';card.dataset.site=s.id;
+ const thumb=document.createElement('div');thumb.className='sc-thumb';
+ const ph=document.createElement('div');ph.className='sc-ph';ph.textContent=s.liveUrl?'preview':'no preview';
+ thumb.appendChild(ph);
+ if(s.liveUrl){thumb.dataset.src=s.liveUrl;thumb.dataset.label=s.label;}
+ const body=document.createElement('div');body.className='sc-body';
+ const nm=document.createElement('div');nm.className='sc-name';nm.textContent=s.label;
+ const url=document.createElement('div');url.className='sc-url';url.textContent=(s.liveUrl||'').replace(/^https?:\/\//,'');
+ const meta=document.createElement('div');meta.className='sc-meta';
+ meta.textContent=[s.repo||'',seenLabel(SEEN[s.id])].filter(Boolean).join('  ·  ');
+ const acts=document.createElement('div');acts.className='sc-actions';
+ const mk=(t,fn,cls)=>{const x=document.createElement('button');x.textContent=t;if(cls)x.className=cls;x.onclick=e=>{e.stopPropagation();fn();};acts.appendChild(x);};
+ mk('Open',()=>selectSite(s));
+ if(meIsAdmin()){mk('Edit',()=>openEditSite(s));mk('Delete',()=>deleteSite(s),'danger');}
+ const on=isPinned(s.id);
+ const pin=document.createElement('button');pin.className='sc-pin'+(on?' on':'');
+ pin.textContent=on?'★':'☆';
+ pin.title=on?'Unpin from the top of the list':'Pin to the top of the list';
+ pin.onclick=e=>{e.stopPropagation();togglePin(s.id);};
+ body.appendChild(nm);body.appendChild(url);body.appendChild(meta);body.appendChild(acts);
+ card.appendChild(thumb);card.appendChild(body);card.appendChild(pin);
+ card.onclick=e=>{if(e.target.tagName!=='BUTTON')selectSite(s);};
+ return card;
+}
+/* Preview frames are only created once a card scrolls into view, so a long list
+   does not open a dozen live sites at once. */
+let thumbObs=null;
+function hydrateThumbs(){
+ if(thumbObs){thumbObs.disconnect();thumbObs=null;}
+ if(PICK.dense||window.innerWidth<=560)return;
+ const load=t=>{
+  if(t.dataset.loaded)return;t.dataset.loaded='1';
+  const fr=document.createElement('iframe');
+  fr.src=t.dataset.src;fr.loading='lazy';fr.title=(t.dataset.label||'')+' preview';
+  fr.setAttribute('scrolling','no');fr.setAttribute('sandbox','allow-scripts allow-same-origin');
+  fr.onload=()=>{const q=t.querySelector('.sc-ph');if(q)q.remove();};
+  t.appendChild(fr);
+ };
+ const targets=Array.prototype.slice.call(document.querySelectorAll('#sitelist .sc-thumb[data-src]'));
+ if(!window.IntersectionObserver){targets.forEach(load);return;}
+ thumbObs=new IntersectionObserver((es,o)=>{es.forEach(e=>{if(e.isIntersecting){load(e.target);o.unobserve(e.target);}});},{root:$('sitelist'),rootMargin:'300px 0px'});
+ targets.forEach(t=>thumbObs.observe(t));
+}
 function renderPicker(){
- const wrap=$('sitelist');wrap.innerHTML='';
- SITES.forEach(s=>{
-  const card=document.createElement('div');card.className='sitecard';
-  const thumb=document.createElement('div');thumb.className='sc-thumb';
-  if(s.liveUrl){const fr=document.createElement('iframe');fr.src=s.liveUrl;fr.loading='lazy';fr.title=esc(s.label)+' preview';fr.setAttribute('scrolling','no');fr.setAttribute('sandbox','allow-scripts allow-same-origin');thumb.appendChild(fr);}
-  else{const ph=document.createElement('div');ph.className='sc-ph';ph.textContent='no preview';thumb.appendChild(ph);}
-  const body=document.createElement('div');body.className='sc-body';
-  const nm=document.createElement('div');nm.className='sc-name';nm.textContent=s.label;
-  const url=document.createElement('div');url.className='sc-url';url.textContent=(s.liveUrl||'').replace(/^https?:\/\//,'');
-  const acts=document.createElement('div');acts.className='sc-actions';
-  const mk=(t,fn,cls)=>{const x=document.createElement('button');x.textContent=t;if(cls)x.className=cls;x.onclick=e=>{e.stopPropagation();fn();};acts.appendChild(x);};
-  mk('Open',()=>selectSite(s));
-  if(meIsAdmin()){mk('Edit',()=>openEditSite(s));mk('Delete',()=>deleteSite(s),'danger');}
-  body.appendChild(nm);body.appendChild(url);body.appendChild(acts);
-  card.appendChild(thumb);card.appendChild(body);
-  card.onclick=e=>{if(e.target.tagName!=='BUTTON')selectSite(s);};
-  wrap.appendChild(card);
+ const wrap=$('sitelist');wrap.innerHTML='';wrap.className=PICK.dense?'dense':'';
+ const terms=PICK.q.toLowerCase().split(/\s+/).filter(Boolean);
+ const hits=SITES.filter(s=>siteMatches(s,terms));
+ const byName=(a,b)=>String(a.label||'').localeCompare(String(b.label||''),undefined,{sensitivity:'base'});
+ const pinFirst=(a,b)=>(isPinned(b.id)?1:0)-(isPinned(a.id)?1:0);
+ let blocks=[];
+ if(PICK.sort==='az')blocks=[{title:'',items:hits.slice().sort((a,b)=>pinFirst(a,b)||byName(a,b))}];
+ else if(PICK.sort==='recent')blocks=[{title:'',items:hits.slice().sort((a,b)=>pinFirst(a,b)||((SEEN[b.id]||0)-(SEEN[a.id]||0))||byName(a,b))}];
+ else{
+  const pinned=hits.filter(s=>isPinned(s.id)).sort(byName);
+  const map={};
+  hits.filter(s=>!isPinned(s.id)).forEach(s=>{const g=groupOf(s);(map[g]=map[g]||[]).push(s);});
+  const names=Object.keys(map).sort((a,b)=>a==='Ungrouped'?1:b==='Ungrouped'?-1:a.localeCompare(b));
+  const heads=!!(pinned.length||names.length>1||(names[0]&&names[0]!=='Ungrouped'));
+  if(pinned.length)blocks.push({title:'Pinned',items:pinned});
+  names.forEach(g=>blocks.push({title:heads?g:'',items:map[g].sort(byName)}));
+ }
+ PICK.rows=[];
+ blocks.forEach(b=>{
+  if(!b.items.length)return;
+  if(b.title){const hd=document.createElement('div');hd.className='sc-group';hd.textContent=b.title;wrap.appendChild(hd);}
+  b.items.forEach(s=>{wrap.appendChild(siteCard(s));PICK.rows.push(s);});
  });
+ if(!PICK.rows.length){
+  const em=document.createElement('div');em.className='sc-empty';
+  em.textContent=terms.length?('Nothing matches "'+PICK.q.trim()+'". Try part of the name, the group, or the repo.'):'No sites yet.';
+  wrap.appendChild(em);
+ }
  if(meIsAdmin()){
   const add=document.createElement('div');add.className='sitecard sitecard-add';
   add.innerHTML='<span class="sc-name">+ Add a website</span>';
   add.onclick=openAddSite;
   wrap.appendChild(add);
  }
+ const c=$('site-count');
+ if(c)c.textContent=terms.length?(PICK.rows.length+' of '+SITES.length+' sites'):(SITES.length+(SITES.length===1?' site':' sites'));
+ const dn=$('site-density');if(dn)dn.textContent=PICK.dense?'Cards':'Compact';
+ PICK.kb=-1;hydrateThumbs();scrollEdges();
 }
+function scrollEdges(){
+ const l=$('sitelist');if(!l)return;
+ const more=l.scrollHeight-l.clientHeight>2;
+ l.classList.toggle('more-up',more&&l.scrollTop>2);
+ l.classList.toggle('more-down',more&&l.scrollTop<l.scrollHeight-l.clientHeight-2);
+}
+$('sitelist').addEventListener('scroll',scrollEdges,{passive:true});
+window.addEventListener('resize',()=>{scrollEdges();if(!PICK.dense)hydrateThumbs();});
+const pickCards=()=>Array.prototype.slice.call(document.querySelectorAll('#sitelist .sitecard:not(.sitecard-add)'));
+function pickMove(step){
+ if(!PICK.rows.length)return;
+ PICK.kb=Math.max(0,Math.min(PICK.rows.length-1,(PICK.kb<0?(step>0?-1:0):PICK.kb)+step));
+ const cards=pickCards();
+ cards.forEach((c,k)=>c.classList.toggle('kb',k===PICK.kb));
+ if(cards[PICK.kb])cards[PICK.kb].scrollIntoView({block:'nearest'});
+}
+function fillGroups(){
+ const dl=$('as-groups');if(!dl)return;
+ dl.innerHTML='';const seen={};
+ SITES.forEach(s=>{const g=String(s.group||'').trim();if(g&&!seen[g]){seen[g]=1;const o=document.createElement('option');o.value=g;dl.appendChild(o);}});
+}
+$('site-q').addEventListener('input',e=>{PICK.q=e.target.value;renderPicker();});
+$('site-q').addEventListener('keydown',e=>{
+ if(e.key==='ArrowDown'){e.preventDefault();pickMove(1);}
+ else if(e.key==='ArrowUp'){e.preventDefault();pickMove(-1);}
+ else if(e.key==='Enter'){const s=PICK.rows[PICK.kb<0?0:PICK.kb];if(s)selectSite(s);}
+ else if(e.key==='Escape'&&PICK.q){e.stopPropagation();PICK.q='';e.target.value='';renderPicker();}
+});
+$('site-sort').addEventListener('change',e=>{PICK.sort=e.target.value;lsSet(PK.sort,PICK.sort);renderPicker();});
+$('site-density').onclick=()=>{PICK.dense=!PICK.dense;lsSet(PK.dense,PICK.dense?'1':'0');renderPicker();};
+document.addEventListener('keydown',e=>{
+ if($('picker').style.display!=='flex')return;
+ if($('addsite').style.display!=='none'||$('userspanel').style.display!=='none')return;
+ if(document.activeElement===$('site-q'))return;
+ if(e.key==='/'){e.preventDefault();$('site-q').focus();$('site-q').select();}
+ else if(e.key==='ArrowDown'){e.preventDefault();pickMove(1);}
+ else if(e.key==='ArrowUp'){e.preventDefault();pickMove(-1);}
+ else if(e.key==='Enter'&&PICK.kb>=0&&PICK.rows[PICK.kb])selectSite(PICK.rows[PICK.kb]);
+});
 async function showPicker(){
  if(Object.values(files).some(st=>st.dirty)&&!confirm('Discard unsaved changes and switch site?'))return;
  $('app').style.display='none';$('gate').style.display='none';$('picker').style.display='flex';
  const r=await api('/api/sites');
  if(r.status===401){sessionStorage.removeItem('jrd-admin-key');location.reload();return;}
  SITES=(r.json&&r.json.sites)||[];
+ PICK.q='';PICK.kb=-1;
+ const q=$('site-q');if(q)q.value='';
+ const so=$('site-sort');if(so)so.value=PICK.sort;
  renderPicker();
+ if(q&&SITES.length>6&&window.matchMedia&&window.matchMedia('(hover:hover)').matches)setTimeout(()=>q.focus(),40);
 }
 async function selectSite(s){
- curSite=s;sessionStorage.setItem('jrd-admin-site',s.id);
+ curSite=s;sessionStorage.setItem('jrd-admin-site',s.id);markSeen(s.id);
  const r=await api('/api/load?file='+encodeURIComponent(s.schema||'_schema.json')+'&site='+encodeURIComponent(s.id));
  if(r.status!==200){alert('Could not load the schema for '+s.label+': '+((r.json&&r.json.error)||r.status));return;}
  compileSchema(r.json.content);
@@ -1672,17 +1869,18 @@ function fillForm(s){
  $('as-repo').value=s.repo||'';
  $('as-branch').value=s.branch||'main';
  $('as-url').value=s.liveUrl||'';
+ $('as-group').value=s.group||'';
  $('as-files').value=(s.files||[]).join('\n');
 }
 function openAddSite(){
- addMode='add';fillForm({branch:'main'});
+ addMode='add';fillForm({branch:'main'});fillGroups();
  $('as-id').readOnly=false;$('as-id').style.opacity='';
  $('as-title').textContent='New site';$('as-add').textContent='Add site';$('as-hint').style.display='';
  $('as-err').className='err';$('as-err').style.color='';$('as-err').textContent='';
  $('addsite').style.display='flex';$('as-label').focus();
 }
 function openEditSite(s){
- addMode='edit';fillForm(s);
+ addMode='edit';fillForm(s);fillGroups();
  $('as-id').readOnly=true;$('as-id').style.opacity='.55';
  $('as-title').textContent='Edit site';$('as-add').textContent='Save changes';$('as-hint').style.display='none';
  $('as-err').className='err';$('as-err').style.color='';$('as-err').textContent='';
@@ -1696,6 +1894,7 @@ async function submitAddSite(){
   repo:$('as-repo').value.trim(),
   branch:$('as-branch').value.trim()||'main',
   liveUrl:$('as-url').value.trim(),
+  group:$('as-group').value.trim(),
   files:$('as-files').value.split('\n').map(s=>s.trim()).filter(Boolean)
  };
  $('as-err').className='err';$('as-err').style.color='#94a3b8';$('as-err').textContent=addMode==='edit'?'Saving…':'Adding…';$('as-add').disabled=true;

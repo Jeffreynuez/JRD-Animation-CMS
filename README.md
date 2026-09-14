@@ -111,6 +111,13 @@ only). The repo needs `data/_schema.json`, its `data/*.json` content files, a
 `scripts/build.js` that renders data → HTML, and the `?edit=1` editor bridge
 in its `main.js`. Then widen `GITHUB_TOKEN` to the new repo (Contents R/W).
 
+**Finding a website** — the picker scrolls, and above the list there is a
+search box (name, group, repo or URL), a sort control (Group / A to Z /
+Recently opened) and a Cards ⇄ Compact density toggle. ☆ pins a site to the
+top. Type `/` to jump to the search box, arrow keys to move, Enter to open.
+Pins, sort, density and "recently opened" are stored per browser; the
+**Group** field on each site is shared and lives in `data/sites.json`.
+
 **After deploying the CMS itself** — browsers cache `admin.html` hard: always
 hard-refresh (Ctrl+F5) before judging a change.
 

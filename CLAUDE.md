@@ -57,6 +57,20 @@ are fully adopted, and adding the `item-remove` bridge handler to Proguild and
 the JRD portfolio `main.js` (only GC-Windsor has it — live delete sync does
 nothing on the other sites until then).
 
+Site picker (2026-09-14): the picker box is a flex column with a fixed head
+(title, search, sort, density), a scrolling `#sitelist` and a fixed footer, so
+a long registry scrolls instead of running off screen. Search matches label,
+id, group, repo and URL (all terms must hit). Sort is Group / A to Z /
+Recently opened; ☆ pins float to the top under a "Pinned" heading. Density
+toggles preview cards ⇄ a compact one-line list. Preview iframes are created
+lazily by an IntersectionObserver rooted on `#sitelist`, and not at all in
+compact mode or under 560px wide, so a long list no longer opens a dozen live
+sites at once. Sort, density, pins and last-opened times live in localStorage
+(`jrd-pick-*`) — per browser, no server round trip, no new api/ file. The one
+shared piece is a `group` string per site, carried in `data/sites.json` and
+whitelisted in `full()` in api/sites.js (fields not in `full()` are dropped
+on every write, so anything new must be added there too).
+
 ## Deploy workflow (this is the part people break)
 
 - Claude sessions CANNOT push to GitHub from the Cowork cloud sandbox (the

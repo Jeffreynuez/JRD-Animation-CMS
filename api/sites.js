@@ -7,7 +7,7 @@ const { getRegistry, HOME_REPO, HOME_BRANCH, REGISTRY_PATH, checkAuth, gh } = re
 
 const SLUG = /^[a-z0-9][a-z0-9-]*$/;
 const REPO_RE = /^[\w.-]+\/[\w.-]+$/;
-const full = s => ({ id: s.id, label: s.label, repo: s.repo, branch: s.branch || 'main', liveUrl: s.liveUrl || '', schema: s.schema || '_schema.json', files: s.files || [] });
+const full = s => ({ id: s.id, label: s.label, repo: s.repo, branch: s.branch || 'main', liveUrl: s.liveUrl || '', group: s.group || '', schema: s.schema || '_schema.json', files: s.files || [] });
 
 /* resolve editable files: use the manual list if given, else derive from the repo's data/<schema> */
 async function resolveFiles(repo, branch, schema, files) {
@@ -72,6 +72,7 @@ module.exports = async (req, res) => {
     const branch = (String(inp.branch || '').trim()) || 'main';
     const liveUrl = String(inp.liveUrl || '').trim();
     const schema = (String(inp.schema || '').trim()) || '_schema.json';
+    const group = String(inp.group || '').trim().slice(0, 40);
     let files = Array.isArray(inp.files) ? inp.files.map(f => String(f).trim()).filter(Boolean) : [];
 
     if (!SLUG.test(id)) return res.status(400).json({ error: 'Site ID must be lowercase letters, numbers, and hyphens (e.g. my-portfolio).' });
@@ -88,7 +89,7 @@ module.exports = async (req, res) => {
     files = rf.files;
     if (!files.length) return res.status(400).json({ error: 'No editable files resolved. List them manually (one per line).' });
 
-    const entry = { id, label, repo, branch, liveUrl, schema, files };
+    const entry = { id, label, repo, branch, liveUrl, group, schema, files };
     const sites = op === 'add' ? reg.sites.concat([entry]) : reg.sites.map(s => (s.id === id ? entry : s));
     const wr = await commitRegistry(sites, reg.sha, (op === 'add' ? 'cms: add site ' : 'cms: edit site ') + id + ' in registry');
     if (wr.status !== 200 && wr.status !== 201) return writeErr(res, wr);

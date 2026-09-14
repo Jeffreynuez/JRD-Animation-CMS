@@ -66,6 +66,9 @@ the stamping — so a site can ship editable and gain click-to-edit later.
    - **Repo** — `owner/name`.
    - **Branch** — usually `main`.
    - **Live URL** — the Vercel URL (drives the preview and the visual-editor iframe).
+   - **Group** — optional. Sites with the same group are listed together under a heading in the
+     picker (for example `Clients`, `Personal`, `Demos`). Existing groups autocomplete; blank
+     sites fall under *Ungrouped*, at the bottom.
    - **Editable files** — leave blank to auto-detect from `data/_schema.json`, or list one per line.
 6. Submit. The card appears immediately, and you can **Open / Edit / Delete** it from the picker.
 
@@ -80,6 +83,7 @@ For reference, this is what the form writes into `data/sites.json`:
   "repo": "Jeffreynuez/Saleestarbuck",
   "branch": "main",
   "liveUrl": "https://saleestarbuck.vercel.app",
+  "group": "Clients",
   "schema": "_schema.json",
   "files": ["pages.json", "home.json", "posts.json", "testimonials.json",
             "review.json", "refer.json", "contact.json", "theme.json"]
