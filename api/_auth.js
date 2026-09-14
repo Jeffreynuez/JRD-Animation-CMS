@@ -12,6 +12,9 @@
 //   MAIL_FROM_EMAIL  - a verified Brevo sender (e.g. jdelanuez@gcwindsor.com)
 //   MAIL_FROM_NAME   - display name for emails       (default "JRD Site Editor")
 //   ADMIN_URL        - default https://jrd-animation-cms.vercel.app/admin
+//   GOOGLE_CLIENT_ID - enables "Sign in with Google" on the gate. Public value,
+//                      not a secret. No client secret is needed: we verify the
+//                      ID token the browser gets, we do not run a redirect flow.
 'use strict';
 const crypto = require('crypto');
 const { gh } = require('./_lib.js');
@@ -173,6 +176,60 @@ function inviteEmailHtml(name, link, isReset) {
 }
 const setpwLink = token => ADMIN_URL + '?setpw=' + encodeURIComponent(token);
 
+/* ---------- Google sign-in (zero dependencies) ----------
+   Google Identity Services hands the BROWSER a signed ID token; we verify it
+   here rather than running an OAuth redirect flow, so there is no callback
+   endpoint (the api/ folder is full) and no client secret to store.
+   Verification is RS256 against Google's published JWKS using Node's own
+   crypto, then issuer, audience, expiry and email_verified. Checking `aud`
+   against our own client id is the one that matters most: without it, a token
+   any other site minted for its own users would be accepted here.
+   Google rotates signing keys, so the key set is cached for an hour and
+   refetched once when a token arrives with a kid we have not seen. */
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_ISS = ['https://accounts.google.com', 'accounts.google.com'];
+let googleKeys = { t: 0, keys: [] };
+
+async function googleJwks(force) {
+  if (!force && googleKeys.keys.length && Date.now() - googleKeys.t < 3600000) return googleKeys.keys;
+  const r = await fetch('https://www.googleapis.com/oauth2/v3/certs');
+  if (!r.ok) throw new Error('Could not reach Google to check that sign-in.');
+  const j = await r.json().catch(() => ({}));
+  googleKeys = { t: Date.now(), keys: j.keys || [] };
+  return googleKeys.keys;
+}
+
+/* Resolves to { email, name } for a genuine token, throws with a safe message. */
+async function verifyGoogleToken(credential) {
+  if (!GOOGLE_CLIENT_ID) throw new Error('Google sign-in is not configured on this server.');
+  const parts = String(credential || '').split('.');
+  if (parts.length !== 3) throw new Error('That Google token is malformed.');
+  const dec = i => JSON.parse(Buffer.from(parts[i], 'base64url').toString('utf8'));
+
+  let head;
+  try { head = dec(0); } catch (e) { throw new Error('That Google token is malformed.'); }
+  if (head.alg !== 'RS256') throw new Error('Unexpected Google token algorithm.');
+
+  let keys = await googleJwks(false);
+  let jwk = keys.find(k => k.kid === head.kid);
+  if (!jwk) { keys = await googleJwks(true); jwk = keys.find(k => k.kid === head.kid); }
+  if (!jwk) throw new Error('Google signing key not recognized.');
+
+  const key = crypto.createPublicKey({ key: jwk, format: 'jwk' });
+  const ok = crypto.verify('RSA-SHA256', Buffer.from(parts[0] + '.' + parts[1]), key, Buffer.from(parts[2], 'base64url'));
+  if (!ok) throw new Error('That Google token failed signature checks.');
+
+  let c;
+  try { c = dec(1); } catch (e) { throw new Error('That Google token is malformed.'); }
+  const now = Math.floor(Date.now() / 1000);
+  if (GOOGLE_ISS.indexOf(c.iss) < 0) throw new Error('That token was not issued by Google.');
+  if (c.aud !== GOOGLE_CLIENT_ID) throw new Error('That Google token was issued for a different app.');
+  if (!(Number(c.exp) > now - 60)) throw new Error('That Google sign-in expired. Try again.');
+  if (c.email_verified !== true && c.email_verified !== 'true') throw new Error('That Google account has no verified email address.');
+  if (!c.email) throw new Error('Google did not return an email address.');
+  return { email: String(c.email).trim().toLowerCase(), name: String(c.name || '').slice(0, 80) };
+}
+
 /* ---------- permissions (Phase 2) ---------- */
 function siteAllowed(u, siteId) {
   if (isAdmin(u)) return true;
@@ -323,4 +380,5 @@ module.exports = {
   sendMail, inviteEmailHtml, setpwLink, readBody, validEmail, SESSION_DAYS,
   siteAllowed, can, allowedWriteFiles, siteSchema, readDraft, writeDraft, listDrafts, deleteDraft,
   totpCheck, newTotpSecret, otpauthURI, newBackupCodes, hashBackup, useBackupCode,
+  GOOGLE_CLIENT_ID, verifyGoogleToken,
 };

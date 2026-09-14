@@ -119,6 +119,20 @@ on every write, so anything new must be added there too).
   `api/auth/reset.js` is public, so building links from the request Host header
   would let anyone point a password-reset link at a host of their choosing.
   Changing the env var in Vercel needs a redeploy before functions see it.
+- **Sign in with Google** (`GOOGLE_CLIENT_ID`): Google Identity Services hands
+  the browser an ID token; `verifyGoogleToken` in `_auth.js` checks it with Node
+  `crypto` alone (RS256 against Google's JWKS, cached 1h and refetched once on an
+  unknown kid, then issuer, `aud` against our own client id, expiry,
+  `email_verified`). No npm package, no client secret, no callback endpoint,
+  which matters because api/ is full. `login.js ?google=config` tells the gate
+  whether to show the button; `?google=1` signs in.
+  Two rules hold the security: it only signs in an email that ALREADY exists in
+  users.json (never creates an account, since everyone has a Google account),
+  and it does not skip 2FA. First Google sign-in flips an `invited` user to
+  `active`, so a client can be onboarded with no password and no emailed link,
+  which is the durable fix for the invite-link fragility above. Checking `aud` is
+  the load-bearing step: without it a token another site minted for its own users
+  would be accepted here.
 - **users.json + drafts/ live in the PRIVATE `USERS_REPO`** — never move them
   to a public repo (password hashes, TOTP secrets, backup-code hashes).
 - `_lib.js` ⇄ `_auth.js` have a deliberate lazy circular require

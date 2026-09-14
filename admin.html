@@ -207,6 +207,9 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 .thumbwrap{display:inline-flex}
 /* users & access */
 .gate .box select{width:100%;background:#0b1220;border:1px solid #263042;color:#e2e8f0;border-radius:8px;padding:10px 12px;font-size:14px;margin:4px 0 10px}
+#gsi-btn{display:flex;justify-content:center;min-height:40px}
+.gsi-or{display:flex;align-items:center;gap:10px;margin:14px 0;color:#64748b;font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+.gsi-or::before,.gsi-or::after{content:"";flex:1 1 auto;height:1px;background:#1e293b}
 .accessbox{background:#0b1220;border:1px solid #263042;border-radius:12px;padding:16px 18px;margin:8px 0 14px}
 .acc-h{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#38bdf8;margin:16px 0 8px}
 .accessbox .acc-h:first-child{margin-top:0}
@@ -226,6 +229,10 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
     <div class="mono" style="color:#38bdf8">&mdash; JRD SITE EDITOR</div>
     <h1 id="gate-title">Sign in</h1>
     <div id="gate-login">
+      <div id="gsi-wrap" style="display:none">
+        <div id="gsi-btn"></div>
+        <div class="gsi-or"><span>or</span></div>
+      </div>
       <input id="em" type="email" placeholder="Email" autocomplete="email">
       <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
       <div id="boot-extra" style="display:none">
@@ -1658,7 +1665,7 @@ async function doLogin(){
  const body={email:$('em').value,password:$('pw').value};
  if($('boot-extra').style.display!=='none'){body.name=$('bname').value;body.adminKey=$('bkey').value;}
  const r=await postJSON('/api/auth/login',body);
- if(r.status===200&&r.json.totp){PENDING={email:body.email,password:body.password};showTotpStep();return;}
+ if(r.status===200&&r.json.totp){PENDING={mode:'password',email:body.email,password:body.password};showTotpStep();return;}
  if(r.status===200&&r.json.enrollRequired){PENDING={};startEnroll(r.json.preToken);return;}
  if(r.status===200){ME=r.json.user;renderMe();enter();return;}
  if(r.status===409&&r.json.error==='no-users'){$('boot-extra').style.display='block';$('gate-title').textContent='Create the owner account';$('gate-err').textContent='First run \u2014 add your name and the legacy admin key to create the owner account.';return;}
@@ -1668,7 +1675,9 @@ let PENDING={};
 function showTotpStep(){$('gate-login').style.display='none';$('gate-totp').style.display='block';$('gate-title').textContent='Two-factor code';$('totp-code').value='';$('totp-code').focus();}
 async function finishTotpLogin(extra){
  $('totp-err').textContent='';
- const r=await postJSON('/api/auth/login',Object.assign({email:PENDING.email,password:PENDING.password},extra));
+ const r=PENDING.mode==='google'
+  ? await postJSON('/api/auth/login?google=1',Object.assign({credential:PENDING.credential},extra))
+  : await postJSON('/api/auth/login',Object.assign({email:PENDING.email,password:PENDING.password},extra));
  if(r.status===200&&r.json.user){ME=r.json.user;renderMe();$('gate-totp').style.display='none';$('gate-login').style.display='block';enter();return;}
  $('totp-err').textContent=r.json.error||('Failed ('+r.status+')');
 }
@@ -1697,6 +1706,38 @@ async function startEnroll(preToken){
   $('backup-done').onclick=()=>{$('gate-backup').style.display='none';$('gate-login').style.display='block';enter();};
  };
 }
+/* Sign in with Google. The button only appears when GOOGLE_CLIENT_ID is set on
+   the server, so an unconfigured deployment just shows the password form. If
+   Google's script is blocked or slow the password form is untouched, which is
+   why every failure here is swallowed rather than surfaced. */
+async function initGoogle(){
+ try{
+  const r=await fetch('/api/auth/login?google=config');
+  if(!r.ok)return;
+  const j=await r.json().catch(()=>({}));
+  if(!j.clientId)return;
+  await new Promise((ok,bad)=>{
+   const sc=document.createElement('script');
+   sc.src='https://accounts.google.com/gsi/client';sc.async=true;sc.defer=true;
+   sc.onload=ok;sc.onerror=()=>bad(new Error('blocked'));
+   document.head.appendChild(sc);
+  });
+  if(!(window.google&&google.accounts&&google.accounts.id))return;
+  google.accounts.id.initialize({client_id:j.clientId,callback:onGoogleCredential});
+  google.accounts.id.renderButton($('gsi-btn'),{theme:'filled_black',size:'large',shape:'pill',text:'signin_with',width:300});
+  $('gsi-wrap').style.display='block';
+ }catch(e){/* password sign-in stands on its own */}
+}
+async function onGoogleCredential(resp){
+ $('gate-err').textContent='';
+ PENDING={mode:'google',credential:(resp&&resp.credential)||''};
+ const r=await postJSON('/api/auth/login?google=1',{credential:PENDING.credential});
+ if(r.status===200&&r.json.totp){showTotpStep();return;}
+ if(r.status===200&&r.json.enrollRequired){startEnroll(r.json.preToken);return;}
+ if(r.status===200&&r.json.user){ME=r.json.user;renderMe();enter();return;}
+ $('gate-err').textContent=(r.json&&r.json.error)||('Google sign-in failed ('+r.status+')');
+}
+initGoogle();
 $('login').onclick=doLogin;
 $('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 $('forgot').onclick=async()=>{const em=$('em').value.trim();if(!em){$('gate-err').textContent='Type your email above first, then click Forgot password.';return;}const r=await postJSON('/api/auth/reset',{email:em});$('gate-err').textContent=r.json.note||r.json.error||'Check your email.';};

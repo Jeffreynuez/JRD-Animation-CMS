@@ -89,7 +89,8 @@ vercel.json         cleanUrls so /admin serves admin.html; /api/* are functions
 | `BREVO_API_KEY`          | *(optional)* Enables invite/reset emails. Without it, links are copied to the clipboard for manual sharing. |
 | `MAIL_FROM_EMAIL`        | *(optional)* A **verified Brevo sender**. Avoid bare gmail addresses (deliverability). |
 | `MAIL_FROM_NAME`         | *(optional)* Email display name + 2FA issuer label. Default "JRD Site Editor". |
-| `ADMIN_URL`              | *(optional)* Base URL used in invite links.                    |
+| `ADMIN_URL`              | Base URL used in invite and reset links. Treat as **required**: set it to the editor's own origin (`https://edit.jrdanimation.com/admin`). A wrong value mails dead links while the CMS looks healthy. |
+| `GOOGLE_CLIENT_ID`       | *(optional)* Enables "Sign in with Google" on the gate. A Google Cloud OAuth **Web application** client id, with the editor origin listed under Authorized JavaScript origins. Public value, no client secret needed. |
 | `CRON_SECRET`            | *(optional)* Random string; lets the daily Vercel cron authenticate to `/api/drafts?cron=1` for scheduled publishing. |
 
 ## Day-to-day
