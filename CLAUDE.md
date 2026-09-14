@@ -43,10 +43,24 @@ transform (order matters: crop coords are in original pixels).
 
 **Not configured yet:** `CRON_SECRET` (any random string - Vercel then
 authenticates the daily cron; without it only the in-editor pokes fire
-scheduled publishes) and `BREVO_API_KEY` / `MAIL_FROM_EMAIL` env vars — invites
-currently copy their link to the clipboard instead of emailing. Jeffrey wants a
-sender that is NOT his GC Windsor address; options discussed: second verified
-sender in his existing Brevo account, or a separate Brevo account.
+scheduled publishes).
+
+**Brevo email is configured but was being BLOCKED (checked 2026-09-14).**
+`BREVO_API_KEY` and `MAIL_FROM_EMAIL` ARE set on the Vercel project, and
+jrdanimation.com is authenticated in the Brevo account `jeffrey@jrdanimation.com`.
+Invites were still falling back to the clipboard because **Brevo blocks API calls
+from unrecognised IPs**: it auto-authorises IPs for a key's first 30 days, then
+turns blocking on, and Vercel functions egress from a dynamic IP range (a fixed
+outbound IP is Pro-only, $100/mo per project), so every new Vercel IP gets
+blocked and emails Jeffrey a "Verify a new IP" notice. Cure: Brevo > Settings >
+Security > Authorized IPs > "Blocking unauthorized IP addresses" > API keys row >
+Deactivate for API. Authorising single IPs does not hold.
+
+**Do not trust the "Email not configured" alert to mean the env vars are
+missing.** `sendMail()` in `_auth.js` returns false both when the vars are empty
+(no network call at all) and when Brevo returns >= 300, and `users.js` shows the
+same message for both. If a Brevo notification email exists for the same minute,
+the vars are set and the send was rejected. Worth splitting into two messages.
 
 **Next planned (see CMS-V2-PLAN.md):** Phase 4 = version history / one-click
 rollback + audit log mined from the git commits every publish already creates.
