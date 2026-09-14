@@ -1716,6 +1716,32 @@ $('setpw-go').onclick=async()=>{
  else $('setpw-err').textContent=r.json.error||('Failed ('+r.status+')');
 };
 
+/* Invite and reset links are built server-side from the ADMIN_URL env var.
+   If that is stale or points at the wrong host, every emailed link is dead:
+   it once pointed at the marketing site, which 404s. The browser knows the
+   host the editor is actually served from, so correct the copy handed to the
+   admin and say so loudly rather than mailing a dead link in silence.
+   Deliberately client-side only: api/auth/reset.js is public, so trusting the
+   request Host header server-side would let anyone aim a password-reset link
+   at a host of their choosing. */
+function checkLink(link){
+ try{
+  const u=new URL(link,location.origin);
+  if(u.host===location.host)return{link:u.href,wrong:false};
+  const f=new URL('/admin',location.origin);f.search=u.search;
+  return{link:f.href,wrong:true,badHost:u.host};
+ }catch(e){return{link:link,wrong:false};}
+}
+function linkAlert(r,okMsg){
+ const c=checkLink(r.link);
+ try{navigator.clipboard.writeText(c.link);}catch(e){}
+ if(c.wrong){
+  alert('Heads up: the server is building links for '+c.badHost+', which is not this editor.\n\n'
+   +'Any emailed copy is dead. The link on your clipboard has been corrected to '+location.host+', so send that one by hand.\n\n'
+   +'Permanent fix: set ADMIN_URL to '+location.origin+'/admin in the Vercel project settings, then redeploy.');
+ }else alert(okMsg);
+ return c;
+}
 /* ============ users panel (owner/admin) ============ */
 async function showUsers(){
  $('userspanel').style.display='flex';
@@ -1732,7 +1758,7 @@ async function showUsers(){
    '<span class="mono" style="font-size:10px;color:#38bdf8;text-transform:uppercase">'+esc(u.role)+(u.status==='invited'?' · invited':'')+(u.twoFactor?' · 2FA✓':'')+'</span>';
   const mkb=(t,fn)=>{const b=document.createElement('button');b.className='ghost';b.style.cssText='font-size:11px;padding:5px 9px';b.textContent=t;b.onclick=fn;row.appendChild(b);};
   mkb('Access',()=>openAccess(u,row));
-  mkb(u.status==='active'?'Reset link':'Invite link',async()=>{const r2=await postJSON('/api/auth/users',{action:'resend',id:u.id},true);if(r2.status===200){try{await navigator.clipboard.writeText(r2.json.link);}catch(e){}alert((r2.json.emailed?'Email sent. ':'Email not configured \u2014 ')+'link copied to clipboard.');}else alert(r2.json.error||'Failed');});
+  mkb(u.status==='active'?'Reset link':'Invite link',async()=>{const r2=await postJSON('/api/auth/users',{action:'resend',id:u.id},true);if(r2.status===200){linkAlert(r2.json,(r2.json.emailed?'Email sent. ':'Email not configured, ')+'link copied to clipboard.');}else alert(r2.json.error||'Failed');});
   if(!(ME&&u.id===ME.id))mkb('Remove',async()=>{if(!confirm('Remove '+u.email+'?'))return;const r2=await postJSON('/api/auth/users',{action:'delete',id:u.id},true);if(r2.status===200)showUsers();else alert(r2.json.error||'Failed');});
   box.appendChild(row);
  });
@@ -1866,7 +1892,7 @@ $('usersBtn').onclick=showUsers;
 $('inv-send').onclick=async()=>{
  $('inv-err').textContent='';
  const r=await postJSON('/api/auth/users',{action:'invite',email:$('inv-email').value,name:$('inv-name').value,role:$('inv-role').value},true);
- if(r.status===200){$('inv-email').value='';$('inv-name').value='';try{await navigator.clipboard.writeText(r.json.link);}catch(e){}alert((r.json.emailed?'Invite email sent! Also ':'Email not configured \u2014 ')+'copied the invite link to your clipboard to share directly.');showUsers();}
+ if(r.status===200){$('inv-email').value='';$('inv-name').value='';linkAlert(r.json,(r.json.emailed?'Invite email sent! Also ':'Email not configured, ')+'copied the invite link to your clipboard to share directly.');showUsers();}
  else $('inv-err').textContent=r.json.error||('Failed ('+r.status+')');
 };
 

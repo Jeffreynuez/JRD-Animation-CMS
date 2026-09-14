@@ -110,6 +110,15 @@ on every write, so anything new must be added there too).
   ?history=1/?at=, the scheduled-publish sweep in drafts.js ?cron=1, the
   source-code export in sites.js ?download=<siteId>).
 
+- **`ADMIN_URL` must be the editor's own origin** (`https://edit.jrdanimation.com/admin`).
+  Invite and reset links are built from it server-side, so a wrong value mails a
+  dead link and the CMS looks fine from the inside. It was once set to the
+  marketing site, which 404s, and a client's invite bounced off it. `admin.html`
+  now compares every returned link's host against `location.host`, corrects the
+  clipboard copy, and warns the admin. That guard is client-side ON PURPOSE:
+  `api/auth/reset.js` is public, so building links from the request Host header
+  would let anyone point a password-reset link at a host of their choosing.
+  Changing the env var in Vercel needs a redeploy before functions see it.
 - **users.json + drafts/ live in the PRIVATE `USERS_REPO`** — never move them
   to a public repo (password hashes, TOTP secrets, backup-code hashes).
 - `_lib.js` ⇄ `_auth.js` have a deliberate lazy circular require
