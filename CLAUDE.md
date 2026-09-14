@@ -121,6 +121,18 @@ on every write, so anything new must be added there too).
   signed incoming transformation `c_limit,w_2600,h_2600` from
   `api/sign-upload.js`; the signature covers it, so client and server must
   agree on the string.
+- **A headers-only change to a client site does not reach browsers that already
+  cached it.** Changing `vercel.json` headers (frame-ancestors, CSP, anything)
+  ships byte-identical HTML, so the ETag does not change; browsers revalidate,
+  get a 304, and a 304 does not resend headers, so the OLD headers stay cached
+  indefinitely. Chrome partitions that cache by top-level site, so the same site
+  can be blocked under edit.jrdanimation.com while working under
+  jrd-animation-cms.vercel.app - which is exactly how the 2026-09-14 "refused to
+  connect" looked. Neither a hard reload nor `fetch(url,{cache:'reload'})` clears
+  it; a frame navigation reads a cache entry those do not touch. The only cure is
+  a different URL, which is why `loadFrame()` appends `_cb=` and the picker
+  thumbnails append a per-session `CB_SESSION`. Every site's bridge tests
+  `/[?&]edit=1/`, so the extra param is safe. Do not remove it.
 - The editor iframe shows the LAST PUBLISHED build. Text edits sync live via
   the `?edit=1` postMessage bridge in each site's `main.js`; structural
   changes only sync for deletes (`{jrd:'item-remove'}`, which also re-indexes

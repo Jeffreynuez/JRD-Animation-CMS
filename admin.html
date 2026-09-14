@@ -944,9 +944,23 @@ const vMediaApply=(edit,val)=>{if(vframe().contentWindow&&val)vframe().contentWi
 const vItemMedia=(fn,arrPath,idx,val)=>{if(vframe().contentWindow&&val)vframe().contentWindow.postMessage({jrd:'item-media',file:fn,arr:arrPath,idx:idx,url:cdn(String(val).trim()),focal:fpOf(val)},'*');};
 const vItemAdd=(fn,arrPath,val,item)=>{if(vframe().contentWindow&&val)vframe().contentWindow.postMessage({jrd:'item-add',file:fn,arr:arrPath,url:cdn(String(val).trim()),focal:fpOf(val),item:item?JSON.parse(JSON.stringify(item)):null},'*');};
 const vItemField=(fn,arrPath,idx,k2,val)=>{if(vframe().contentWindow)vframe().contentWindow.postMessage({jrd:'item-field',file:fn,arr:arrPath,idx:idx,key:k2,value:val},'*');};
+/* Cache-buster for every framed client site. Two reasons it has to be in the URL:
+   1. A site whose vercel.json headers change (say frame-ancestors) ships identical
+      HTML, so its ETag does not change. Browsers revalidate, get a 304, and a 304
+      does not resend headers, so the OLD headers stay in cache indefinitely. A site
+      framed before such a fix stays broken in that browser forever otherwise. Chrome
+      partitions this cache by top-level site, so it can break on edit.jrdanimation.com
+      while working on jrd-animation-cms.vercel.app.
+   2. It keeps the editor from showing a stale build after a publish.
+   fetch(..., {cache:'reload'}) does NOT fix either one: it never reaches the cache
+   entry a frame navigation reads. Every site's bridge tests /[?&]edit=1/ so an extra
+   param is safe. Do not "tidy" this away. */
+const cbTok=()=>'_cb='+Date.now().toString(36);
+const CB_SESSION=cbTok();                        // stable per admin session, for picker thumbnails
+const cbUrl=u=>u+(u.indexOf('?')>=0?'&':'?')+CB_SESSION;
 function loadFrame(){
  const base=(curSite&&curSite.liveUrl?curSite.liveUrl:'').replace(/\/$/,'');
- vframe().src=(base?base+'/':'')+$('vpage').value+'?edit=1';
+ vframe().src=(base?base+'/':'')+$('vpage').value+'?edit=1&'+cbTok();
  vframe().onload=()=>postTheme();
  closeSel();
 }
@@ -1500,7 +1514,7 @@ function hydrateThumbs(){
  const load=t=>{
   if(t.dataset.loaded)return;t.dataset.loaded='1';
   const fr=document.createElement('iframe');
-  fr.src=t.dataset.src;fr.loading='lazy';fr.title=(t.dataset.label||'')+' preview';
+  fr.src=cbUrl(t.dataset.src);fr.loading='lazy';fr.title=(t.dataset.label||'')+' preview';
   fr.setAttribute('scrolling','no');fr.setAttribute('sandbox','allow-scripts allow-same-origin');
   fr.onload=()=>{const q=t.querySelector('.sc-ph');if(q)q.remove();};
   t.appendChild(fr);
