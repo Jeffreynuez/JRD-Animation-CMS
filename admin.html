@@ -1747,7 +1747,12 @@ $('picker-logout').onclick=signOut;
 
 /* invite / reset links land here with ?setpw=TOKEN */
 const SETPW_TOKEN=new URLSearchParams(location.search).get('setpw');
-if(SETPW_TOKEN){$('gate-login').style.display='none';$('gate-setpw').style.display='block';$('gate-title').textContent='Welcome';}
+/* An invite or reset link hides the login form, which is where the Google
+   button lives. Move it into this panel so the one link offers both ways in:
+   sign in with Google, or set a password. Without this the invite email would
+   be promising a button the recipient never sees. */
+if(SETPW_TOKEN){$('gate-login').style.display='none';$('gate-setpw').style.display='block';$('gate-title').textContent='Welcome';
+ const gw=$('gsi-wrap');if(gw)$('gate-setpw').insertBefore(gw,$('gate-setpw').firstChild);}
 $('setpw-go').onclick=async()=>{
  $('setpw-err').textContent='';
  if($('npw').value.length<8){$('setpw-err').textContent='At least 8 characters.';return;}

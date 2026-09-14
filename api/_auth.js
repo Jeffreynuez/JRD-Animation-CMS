@@ -160,19 +160,92 @@ async function sendMail(toEmail, toName, subject, html) {
     return r.status < 300;
   } catch (e) { return false; }
 }
+/* Invite / reset email.
+   Built for email clients, not browsers: tables rather than divs (Outlook's Word
+   engine ignores max-width on a div), a table-wrapped button (it ignores padding
+   on an <a>), every colour stated explicitly (clients that auto-invert for dark
+   mode otherwise produce unreadable pairs), and no images at all, since most
+   clients block them by default and a header that vanishes is worse than none.
+   The visible URL under the button is the fallback for anything that strips the
+   button entirely, which would otherwise leave the recipient with no way in. */
+const emailEsc = s => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
 function inviteEmailHtml(name, link, isReset) {
-  const title = isReset ? 'Reset your password' : 'You have been invited';
-  const intro = isReset
-    ? 'A password reset was requested for your site editor account.'
-    : 'You now have access to edit your website. Set a password to get started.';
-  const btn = isReset ? 'Set a new password' : 'Set your password';
-  return `<div style="font-family:system-ui,Segoe UI,sans-serif;max-width:520px;margin:0 auto;padding:28px">
-  <p style="font-size:11px;letter-spacing:.2em;color:#0ea5e9;text-transform:uppercase">JRD Site Editor</p>
-  <h2 style="margin:8px 0 12px">${title}</h2>
-  <p style="color:#334155;line-height:1.6">Hi ${name || 'there'}, ${intro}</p>
-  <p style="margin:26px 0"><a href="${link}" style="background:#0ea5e9;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600">${btn}</a></p>
-  <p style="color:#94a3b8;font-size:12px;line-height:1.6">This link expires ${isReset ? 'in 1 hour' : 'in 7 days'}. If you were not expecting it, you can ignore this email.</p>
-</div>`;
+  const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const who = emailEsc(String(name || '').split(' ')[0] || 'there');
+  const href = emailEsc(link);
+  const shown = emailEsc(String(link).replace(/^https?:\/\//, ''));
+
+  const c = isReset ? {
+    pre: 'Choose a new password for your site editor account.',
+    title: 'Reset your password',
+    lead: 'a password reset was requested for your site editor account.',
+    btn: 'Choose a new password',
+    expiry: 'This link expires in 1 hour.',
+    tail: 'If you did not ask for this, ignore this email and nothing changes.',
+    body: '',
+  } : {
+    pre: 'Your website editor is ready. Sign in with Google or set a password.',
+    title: 'Your website editor is ready',
+    lead: 'you can now edit your own website whenever you like. Change text, swap photos, update hours or pricing, and it goes live on your real site. Nothing to install.',
+    btn: 'Open your editor',
+    expiry: 'This link expires in 7 days.',
+    tail: 'If you were not expecting this, you can ignore this email.',
+    body: `
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px">
+              <tr>
+                <td style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px">
+                  <p style="margin:0 0 10px;font-family:${FONT};font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#0284c7">Two ways to sign in</p>
+                  <p style="margin:0 0 7px;font-family:${FONT};font-size:14px;line-height:1.55;color:#334155"><strong style="color:#0f172a">Use Google.</strong> Fastest way in, and there is no password to remember.</p>
+                  <p style="margin:0;font-family:${FONT};font-size:14px;line-height:1.55;color:#334155"><strong style="color:#0f172a">Or set a password.</strong> Same screen, if you would rather not use Google.</p>
+                </td>
+              </tr>
+            </table>`,
+  };
+
+  return `<!--[if !mso]><!--><div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all">${emailEsc(c.pre)}</div><!--<![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#eef2f7;margin:0;padding:0;width:100%">
+  <tr>
+    <td align="center" style="padding:28px 12px">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="width:560px;max-width:100%;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:14px">
+        <tr>
+          <td style="background-color:#0f172a;padding:20px 32px;border-radius:13px 13px 0 0">
+            <span style="font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:#38bdf8">JRD Site Editor</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:34px 32px 30px">
+            <h1 style="margin:0 0 14px;font-family:${FONT};font-size:23px;line-height:1.3;font-weight:700;color:#0f172a">${emailEsc(c.title)}</h1>
+            <p style="margin:0 0 24px;font-family:${FONT};font-size:15px;line-height:1.65;color:#475569">Hi ${who}, ${emailEsc(c.lead)}</p>${c.body}
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" bgcolor="#0ea5e9" style="border-radius:9px">
+                  <a href="${href}" style="display:inline-block;padding:15px 34px;font-family:${FONT};font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:9px">${emailEsc(c.btn)}</a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:24px 0 0;font-family:${FONT};font-size:12px;line-height:1.6;color:#94a3b8">Button not working? Paste this into your browser:<br>
+              <a href="${href}" style="color:#0284c7;text-decoration:underline;word-break:break-all">${shown}</a>
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 32px">
+            <div style="height:1px;background-color:#e2e8f0;font-size:0;line-height:0">&nbsp;</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 32px 24px;border-radius:0 0 13px 13px">
+            <p style="margin:0;font-family:${FONT};font-size:12px;line-height:1.6;color:#94a3b8">${emailEsc(c.expiry)} ${emailEsc(c.tail)}</p>
+            <p style="margin:10px 0 0;font-family:${FONT};font-size:12px;line-height:1.6;color:#cbd5e1">Sent by JRD Animation</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>`;
 }
 const setpwLink = token => ADMIN_URL + '?setpw=' + encodeURIComponent(token);
 
