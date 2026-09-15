@@ -466,6 +466,9 @@ async function ensureFile(fn){
  files[fn]={content:r.json.content,sha:r.json.sha,dirty:false,draft:!!r.json.draft,publishAt:r.json.publishAt||null};
  if(r.json.publishAt)setMsg('Restored your saved draft of '+fn+' — scheduled to go live '+new Date(r.json.publishAt).toLocaleString()+'.');
  else if(r.json.draft)setMsg('Restored your saved draft of '+fn+' — publish when ready.');
+ /* a freshly loaded draft differs from the published page in the frame, so paint
+    it in straight away rather than waiting for the next edit */
+ if(files[fn].draft)setTimeout(repaintPreview,0);
  /* fold the pristine copy into the current undo snapshot so the first edit
     to this file is undoable */
  if(HIST.idx>=0&&HIST.stack[HIST.idx]&&!HIST.stack[HIST.idx][fn])
@@ -823,6 +826,7 @@ async function openSection(id){
  $('content').innerHTML='<p class="msg">Loading…</p>';
  try{await ensureFile(s.file);for(const b of (s.blocks||[])){if(b.file&&b.file!==s.file)await ensureFile(b.file);}}catch(e){$('content').innerHTML='<p class="msg err">Load failed: '+esc(e.message)+'</p>';return;}
  renderBlocks();
+ repaintPreview();
 }
 function renderBlocks(){
  const s=section();if(!s)return;
@@ -945,7 +949,44 @@ function postTheme(){
  if(files['theme.json']&&vframe().contentWindow)
   vframe().contentWindow.postMessage({jrd:'theme',css:clientThemeCss(files['theme.json'].content)},'*');
 }
-const vApply=(edit,val)=>{if(vframe().contentWindow)vframe().contentWindow.postMessage({jrd:'apply',edit,value:val},'*');};
+/* force:true marks an authoritative resync (see repaintPreview) which the page
+   applies even to the element the caret is in. Ordinary edits leave it unset. */
+const vApply=(edit,val,force)=>{if(vframe().contentWindow)vframe().contentWindow.postMessage({jrd:'apply',edit,value:val,force:!!force},'*');};
+/* The preview iframe always loads the PUBLISHED page, so anything sitting in a
+   draft or an unsaved edit is invisible in it until something calls vApply.
+   Switching pages and coming back therefore showed the old words on the page
+   while the side panel showed the new ones, which reads exactly like the save
+   was lost. Repaint from what is in memory whenever the frame reports ready or
+   a section is rendered. Only files that actually differ from the published
+   page (dirty or draft) are worth sending. */
+function repaintPreview(){
+ if(!vframe().contentWindow)return 0;
+ let sent=0;
+ (SECTIONS||[]).forEach(s=>{(s.blocks||[]).forEach(b=>{
+  const fn=b.file||s.file;
+  const st=fn&&files[fn];
+  if(!st||fn==='theme.json')return;
+  if(!st.dirty&&!st.draft)return;
+  if(b.kind==='obj'){
+   const obj=b.path?resolve(st.content,b.path):st.content;
+   if(!obj)return;
+   (b.fields||[]).forEach(fd=>{const v=obj[fd.k];
+    if(typeof v==='string'){vApply(fn+'#'+(b.path?b.path+'.':'')+fd.k,v,true);sent++;}});
+  }else if(b.kind==='arr'){
+   const arr=resolve(st.content,b.path);
+   if(!Array.isArray(arr))return;
+   arr.forEach((it,i)=>(b.fields||[]).forEach(fd=>{const v=it&&it[fd.k];
+    if(typeof v==='string'){vApply(fn+'#'+b.path+'.'+i+'.'+fd.k,v,true);sent++;}}));
+  }
+ });});
+ postTheme();
+ const sj=files['styles.json'];
+ if(sj&&sj.content&&vframe().contentWindow)Object.keys(sj.content).forEach(k=>{
+  const v=sj.content[k]||{};
+  vframe().contentWindow.postMessage({jrd:'styleapply',edit:k,color:v.color||'',align:v.align||''},'*');
+ });
+ return sent;
+}
 const vItemRemove=(fn,arrPath,idx)=>{if(vframe().contentWindow)vframe().contentWindow.postMessage({jrd:'item-remove',file:fn,arr:arrPath,idx:idx},'*');};
 const vMediaApply=(edit,val)=>{if(vframe().contentWindow&&val)vframe().contentWindow.postMessage({jrd:'media-apply',edit,url:cdn(String(val).trim()),focal:fpOf(val)},'*');};
 const vItemMedia=(fn,arrPath,idx,val)=>{if(vframe().contentWindow&&val)vframe().contentWindow.postMessage({jrd:'item-media',file:fn,arr:arrPath,idx:idx,url:cdn(String(val).trim()),focal:fpOf(val)},'*');};
@@ -1064,6 +1105,7 @@ window.addEventListener('message',async e=>{
   const parts=d.edit.split('#');
   try{const st=await ensureFile(parts[0]);setPath(st.content,parts[1],d.value);st.dirty=true;renderSidebar();}catch(err){}
  }
+ if(d.jrd==='ready')repaintPreview();
  if(d.jrd==='select')showSelection(d);
  if(d.jrd==='mapstate')showMapState(d);
  if(d.jrd==='deselect')closeSel();
