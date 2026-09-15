@@ -133,6 +133,20 @@ on every write, so anything new must be added there too).
   which is the durable fix for the invite-link fragility above. Checking `aud` is
   the load-bearing step: without it a token another site minted for its own users
   would be accepted here.
+- **Where the Google OAuth client lives**: Google Cloud project `jrd-site-editor`,
+  inside the **jrdanimation.com** organization (a Workspace), admin
+  `jeffrey@jrdanimation.com`. Not a personal Gmail, deliberately: the client id is
+  business infrastructure and a client-facing consent screen. To change the
+  authorized JavaScript origin (a new editor domain, a staging host) go to that
+  project, APIs & Services / Google Auth Platform, Clients, the "CMS editor" Web
+  application entry. The origin is the bare `https://edit.jrdanimation.com`, no
+  trailing slash and no path; a trailing slash silently breaks sign-in. There are
+  no redirect URIs and no client secret, because this is the ID-token flow rather
+  than a redirect flow. The consent screen is **External and published**, and must
+  stay that way: Internal restricts sign-in to jrdanimation.com accounts, which
+  would lock out every client, since they sign in from their own domains (Tom is
+  on Inca's Workspace). Published also matters on its own, since Testing mode caps
+  you at hand-added users and expires their sessions after 7 days.
 - **users.json + drafts/ live in the PRIVATE `USERS_REPO`** — never move them
   to a public repo (password hashes, TOTP secrets, backup-code hashes).
 - `_lib.js` ⇄ `_auth.js` have a deliberate lazy circular require
