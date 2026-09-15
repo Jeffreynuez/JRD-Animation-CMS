@@ -20,11 +20,31 @@ button.ghost{background:transparent;color:#cbd5e1;border-color:#334155}
 button.ghost:hover{color:#fff;border-color:#94a3b8}
 button.danger:hover{border-color:#b91c1c;color:#b91c1c}
 header{position:fixed;top:0;left:0;right:0;height:var(--hdr);z-index:100;background:rgba(13,17,23,.98);color:#f1f5f9;padding:0 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(96,165,250,.15)}
+/* Nothing on the bar may be squeezed: .devtoggle has overflow:hidden, so a
+   shrunk control clips its own label silently instead of overflowing visibly.
+   Only the status text flexes, and it ellipses on purpose. */
+header>*{flex-shrink:0}
+.devtoggle button{white-space:nowrap}
 header .logo{font-family:'Space Grotesk',sans-serif;font-weight:700;letter-spacing:4px;font-size:17px}
 header .mono{color:var(--cyan-d)}
 header select{font:600 13px system-ui;background:#1e293b;color:#f1f5f9;border:1px solid #334155;border-radius:8px;padding:8px 10px}
 header .spacer{flex:1}
-header .msg{font-size:12px;color:#94a3b8;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header .msg{font-size:12px;color:#94a3b8;max-width:340px;flex:3 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* The bar used to be 21 controls in one non-wrapping row, so it simply clipped.
+   Rare actions now live in #moreMenu and the labels drop out as space runs low. */
+.tmenu{position:fixed;z-index:140;background:#0f172a;border:1px solid #334155;border-radius:12px;padding:7px;display:none;flex-direction:column;gap:2px;min-width:236px;box-shadow:0 18px 44px rgba(0,0,0,.55)}
+.tmenu.open{display:flex}
+.tmenu button{display:block;width:100%;text-align:left;background:transparent;border-color:transparent;color:#cbd5e1;padding:9px 11px;font:500 12.5px system-ui}
+.tmenu button:hover{background:#1e293b;border-color:transparent;color:#fff}
+.tmenu .sep{height:1px;background:#1e293b;margin:5px 3px}
+.tmenu .mhint{display:block;margin-top:2px;font:400 11px system-ui;color:#64748b}
+#moreBtn{position:relative}
+#moreBtn.has-dot::after{content:'';position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--cyan-d)}
+#saveDraftBtn.warn{border-color:#f59e0b;color:#fbbf24}
+@media (max-width:1620px){header .lbl2{display:none}}
+@media (max-width:1560px){header .hide-md{display:none}}
+@media (max-width:1340px){header .lbl{display:none}header{gap:9px}}
+@media (max-width:1180px){header .hide-sm{display:none}header{gap:7px;padding:0 10px}header .msg{max-width:150px}}
 header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 .devtoggle{display:flex;border:1px solid #334155;border-radius:8px;overflow:hidden}
 .devtoggle button{border:none;border-radius:0;background:transparent;color:#94a3b8;padding:9px 12px}
@@ -362,28 +382,36 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 
 <div id="app" style="display:none">
   <header>
-    <span class="logo">JRD</span><span class="mono">EDITOR</span>
-    <span class="mono" id="siteLabel" style="color:#94a3b8;letter-spacing:.1em"></span>
+    <span class="logo">JRD</span><span class="mono hide-sm">EDITOR</span>
+    <span class="mono hide-md" id="siteLabel" style="color:#94a3b8;letter-spacing:.1em"></span>
     <button class="ghost" id="switchSite">⇆ Site</button>
     <select id="vpage"></select>
     <div class="devtoggle"><button id="dev-d" class="on">Desktop</button><button id="dev-m">Mobile</button></div>
-    <button class="ghost" id="drawerBtn">☰ Manage content</button>
-    <button class="ghost" id="reloadBtn">⟳ Reload</button>
-    <button class="ghost" id="viewLive" title="Open the published page in a new tab">↗ View live</button>
+    <button class="ghost" id="drawerBtn" title="Manage content">☰<span class="lbl"> Manage content</span></button>
+    <button class="ghost" id="reloadBtn" title="Reload the preview">⟳<span class="lbl2"> Reload</span></button>
+    <button class="ghost" id="viewLive" title="Open the published page in a new tab">↗<span class="lbl2"> View live</span></button>
     <span class="spacer"></span>
     <span class="msg" id="msg">Click anything on the page to edit it.</span>
-    <span class="mono" id="meLabel" style="color:#64748b;font-size:10px"></span>
-    <button class="ghost" id="secBtn" title="Two-factor authentication">&#128274;</button>
-    <button class="ghost" id="draftsBtn" style="display:none" title="Pending changes awaiting your approval">&#128337; Drafts</button>
-    <button class="ghost" id="usersBtn" style="display:none" title="Invite and manage users">&#128101; Users</button>
     <button class="ghost" id="undoBtn" title="Undo (Ctrl+Z)" disabled>&#8630;</button>
     <button class="ghost" id="redoBtn" title="Redo (Ctrl+Y)" disabled>&#8631;</button>
-    <button class="ghost" id="tourBtn" title="Quick tour of the editor">?</button>
+    <button class="ghost" id="histBtn" title="Published versions of the page you are on">&#8635;<span class="lbl2"> History</span></button>
     <button class="ghost" id="saveDraftBtn" title="Store your changes in the editor without touching the live site">Save</button>
-    <button class="ghost" id="schedBtn" title="Schedule these changes to go live later">&#128340;</button>
     <button class="primary" id="save">Publish</button>
-    <button class="ghost" id="logout">Sign out</button>
+    <button class="ghost" id="moreBtn" title="More actions" aria-haspopup="true" aria-expanded="false">More &#9662;</button>
   </header>
+  <div id="moreMenu" class="tmenu" role="menu">
+    <span class="mono" id="meLabel" style="display:block;color:#64748b;font-size:10px;padding:3px 11px 8px"></span>
+    <button class="ghost" type="button" id="autoBtn"></button>
+    <div class="sep"></div>
+    <button class="ghost" id="schedBtn" title="Schedule these changes to go live later">&#128340; Schedule publish</button>
+    <button class="ghost" id="draftsBtn" style="display:none" title="Pending changes awaiting your approval">&#128337; Drafts</button>
+    <div class="sep"></div>
+    <button class="ghost" id="usersBtn" style="display:none" title="Invite and manage users">&#128101; Users</button>
+    <button class="ghost" id="secBtn" title="Two-factor authentication">&#128274; Two-factor authentication</button>
+    <button class="ghost" id="tourBtn" title="Quick tour of the editor">? Quick tour</button>
+    <div class="sep"></div>
+    <button class="ghost" id="logout">Sign out</button>
+  </div>
 
   <div id="stage"><iframe id="vframe" title="Site preview"></iframe></div>
 
@@ -827,6 +855,7 @@ async function openSection(id){
  try{await ensureFile(s.file);for(const b of (s.blocks||[])){if(b.file&&b.file!==s.file)await ensureFile(b.file);}}catch(e){$('content').innerHTML='<p class="msg err">Load failed: '+esc(e.message)+'</p>';return;}
  renderBlocks();
  repaintPreview();
+ updateSaveHint();
 }
 function renderBlocks(){
  const s=section();if(!s)return;
@@ -1386,7 +1415,7 @@ setInterval(async()=>{
  if(!curSite)return;
  /* poke the scheduler every 5 min so scheduled publishes fire near their time */
  if(AUTOTICKS%10===0)fetch('/api/drafts?cron=1',{method:'POST',headers:{'x-admin-key':key()}}).catch(()=>{});
- if(document.hidden||AUTOSAVING)return;
+ if(document.hidden||AUTOSAVING||!autosaveOn())return;
  const dirty=Object.entries(files).filter(([,st])=>st.dirty).filter(saveable);
  if(!dirty.length)return;
  AUTOSAVING=true;
@@ -1459,6 +1488,11 @@ function initApp(){
  $('redoBtn').onclick=()=>histRestore(1);
  $('schedBtn').onclick=openSchedule;
  $('tourBtn').onclick=()=>startTour(true);
+ $('moreBtn').onclick=()=>toggleMenu($('moreMenu'),$('moreBtn'));
+ $('moreMenu').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&b.id!=='autoBtn')closeMenu();});
+ $('autoBtn').onclick=()=>setAutosave(!autosaveOn());
+ $('histBtn').onclick=openHistoryMenu;
+ renderAutoBtn();updateSaveHint();
  renderSidebar();
  histPush();  /* baseline snapshot for undo */
  loadFrame();
@@ -1469,15 +1503,16 @@ function initApp(){
 }
 async function refreshDrafts(){
  const btn=$('draftsBtn');if(!btn)return;
- if(!meIsAdmin()||!curSite){btn.style.display='none';return;}
+ const dot=v=>{const mb=$('moreBtn');if(mb)mb.classList.toggle('has-dot',!!v);};
+ if(!meIsAdmin()||!curSite){btn.style.display='none';dot(false);return;}
  try{
   const r=await fetch('/api/drafts?site='+encodeURIComponent(curSite.id),{headers:{'x-admin-key':key()}});
   const j=await r.json().catch(()=>({}));
   const n=(j.drafts||[]).length;
-  btn.style.display=n?'':'none';
+  btn.style.display=n?'':'none';dot(n>0);
   btn.textContent='\u{1F552} Drafts ('+n+')';
   btn.onclick=()=>showDrafts(j.drafts||[]);
- }catch(e){btn.style.display='none';}
+ }catch(e){btn.style.display='none';dot(false);}
 }
 function showDrafts(drafts){
  const wrap=$('draftlist');wrap.innerHTML='';
@@ -1505,9 +1540,107 @@ function showDrafts(drafts){
 /* Picker preferences (sort, density, pins, last-opened) live in localStorage:
    per browser, no server round trip, no new serverless function. Groups are the
    one piece that is shared, and they ride along in data/sites.json. */
-const PK={sort:'jrd-pick-sort',dense:'jrd-pick-dense',pins:'jrd-pick-pins',seen:'jrd-pick-seen'};
+const PK={sort:'jrd-pick-sort',dense:'jrd-pick-dense',pins:'jrd-pick-pins',seen:'jrd-pick-seen',autosave:'jrd-autosave'};
 const lsGet=(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:v;}catch(e){return d;}};
 const lsSet=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+
+/* ---------- toolbar menus ---------- */
+let OPENMENU=null;
+function closeMenu(){
+ if(!OPENMENU)return;
+ OPENMENU.classList.remove('open');
+ if(OPENMENU.dataset.temp)OPENMENU.remove();
+ const mb=$('moreBtn');if(mb)mb.setAttribute('aria-expanded','false');
+ OPENMENU=null;
+}
+function toggleMenu(panel,anchor){
+ if(OPENMENU===panel){closeMenu();return;}
+ closeMenu();
+ const r=anchor.getBoundingClientRect();
+ panel.style.top=(r.bottom+6)+'px';
+ panel.style.right=Math.max(8,window.innerWidth-r.right)+'px';
+ panel.classList.add('open');OPENMENU=panel;
+ if(anchor.id==='moreBtn')anchor.setAttribute('aria-expanded','true');
+}
+/* one-off menu built from a list, used by History */
+function popMenu(anchor,items){
+ const p=document.createElement('div');p.className='tmenu';p.dataset.temp='1';
+ items.forEach(it=>{
+  const b=document.createElement('button');b.type='button';b.className='ghost';
+  b.textContent=it.label;
+  if(it.hint){const h=document.createElement('span');h.className='mhint';h.textContent=it.hint;b.appendChild(h);}
+  b.onclick=()=>{closeMenu();it.onClick&&it.onClick();};
+  p.appendChild(b);
+ });
+ document.body.appendChild(p);toggleMenu(p,anchor);
+}
+document.addEventListener('mousedown',e=>{
+ if(OPENMENU&&!OPENMENU.contains(e.target)&&!e.target.closest('#moreBtn,#histBtn'))closeMenu();
+},true);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu();});
+
+/* ---------- autosave preference (per person, this browser) ---------- */
+const autosaveOn=()=>lsGet(PK.autosave,'1')!=='0';
+function renderAutoBtn(){
+ const b=$('autoBtn');if(!b)return;
+ const on=autosaveOn();
+ b.textContent=on?'\u2713 Autosave is on':'Autosave is off';
+ const h=document.createElement('span');h.className='mhint';
+ h.textContent=on?'Drafts kept for you every 30 seconds.':'Nothing is kept until you press Save.';
+ b.appendChild(h);
+}
+function updateSaveHint(){
+ const b=$('saveDraftBtn');if(!b)return;
+ const pending=Object.values(files).some(st=>st&&st.dirty);
+ const warn=pending&&!autosaveOn();
+ b.classList.toggle('warn',warn);
+ b.title=warn?'Autosave is off and you have unsaved changes — press Save to keep them.'
+             :'Store your changes in the editor without touching the live site';
+}
+function setAutosave(on){
+ lsSet(PK.autosave,on?'1':'0');
+ renderAutoBtn();updateSaveHint();
+ setMsg(on?'Autosave on — drafts are kept for you every 30 seconds.'
+          :'Autosave off — your changes are only kept when you press Save.',on?'ok':'');
+}
+
+/* ---------- which data files back the page in the preview ----------
+   The schema has no page-to-file mapping, but the rendered page carries a
+   data-edit="<file>#<path>" on every editable element, and every managed site
+   serves Access-Control-Allow-Origin: *, so the editor can just read the page
+   and ask it. Falls back to the site's whole file list if that ever fails. */
+const PAGEFILES={};
+async function pageFiles(){
+ const pg=$('vpage').value||'';
+ if(PAGEFILES[pg])return PAGEFILES[pg];
+ const base=(curSite&&curSite.liveUrl?curSite.liveUrl:'').replace(/\/$/,'');
+ let out=[];
+ try{
+  const r=await fetch((base?base+'/':'')+pg,{cache:'no-store'});
+  if(r.ok){
+   const html=await r.text();
+   const seen={};
+   (html.match(/data-edit(?:-item)?="[^"#]+#/g)||[]).forEach(m=>{
+    const f=m.replace(/^data-edit(?:-item)?="/,'').slice(0,-1);
+    if(f)seen[f]=1;
+   });
+   out=Object.keys(seen);
+  }
+ }catch(e){/* fall through to the registry list */}
+ if(!out.length)out=((curSite&&curSite.files)||[]).slice();
+ PAGEFILES[pg]=out;
+ return out;
+}
+async function openHistoryMenu(){
+ if(!curSite){setMsg('Open a site first.');return;}
+ const btn=$('histBtn');
+ btn.disabled=true;                       /* label holds a .lbl span, so do not rewrite it */
+ let fs=[];
+ try{fs=await pageFiles();}finally{btn.disabled=false;}
+ if(!fs.length){setMsg('No editable files found for this page.');return;}
+ if(fs.length===1){showHistory(fs[0]);return;}
+ popMenu(btn,fs.map(f=>({label:f,hint:'Published versions',onClick:()=>showHistory(f)})));
+}
 const lsJSON=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v||d;}catch(e){return d;}};
 let PICK={q:'',sort:lsGet(PK.sort,'group'),dense:lsGet(PK.dense,'0')==='1',kb:-1,rows:[]};
 let PINS=lsJSON(PK.pins,[]),SEEN=lsJSON(PK.seen,{});
