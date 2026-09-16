@@ -147,6 +147,49 @@ on every write, so anything new must be added there too).
   would lock out every client, since they sign in from their own domains (Tom is
   on Inca's Workspace). Published also matters on its own, since Testing mode caps
   you at hand-added users and expires their sessions after 7 days.
+- **The editor bridge protocol**, spoken by every managed site's
+  `assets/js/main.js` and duplicated per site, so a bridge change is five repos
+  (Inca, JRD Online Portfolio, GC Windsor, Salee Starbuck, Proguild):
+  page to editor `ready` (on load), `select`, `text` (typing on the page),
+  `deselect`, `mapstate`; editor to page `apply` (+ `force`), `theme`,
+  `styleapply`, `item-*`, `media-apply`. Unknown messages are ignored, so a
+  site with a simpler bridge is safe to send everything to.
+- **`apply` has a guard, and `force` is how you override it.** The guard skips
+  the element the caret is genuinely in, so an incoming update never fights a
+  typist. It originally tested only `el === selEl && el.isContentEditable`,
+  which silently dropped EVERY side-panel edit, because clicking an element to
+  open its panel is exactly what makes it selected and contentEditable. It now
+  also requires `document.hasFocus()` and `document.activeElement === el`, which
+  are false while the user types in the parent's panel. `repaintPreview()` sends
+  `force: true` because a resync is authoritative, not an incidental echo.
+- **The preview iframe always loads the PUBLISHED page**, so a draft or an
+  unsaved edit is invisible in it until something calls vApply. That made a
+  saved draft look lost: switch page, come back, and the panel showed the new
+  words while the page showed the old. `repaintPreview()` walks the schema and
+  pushes every dirty-or-draft file's values into the frame; it runs on the
+  frame's `ready` message (which the CMS used to ignore), after a section
+  renders, and when `ensureFile` loads a draft. It repaints theme and
+  `styles.json` the same way, since they had the identical gap.
+- **The toolbar is capacity-limited.** It was 21 controls in one non-wrapping
+  row and clipped rather than adapted, and `.devtoggle` has `overflow:hidden`
+  so a squeezed control hides its own label silently instead of overflowing
+  visibly. Rare actions (2FA, Drafts, Users, Schedule, Quick tour, Sign out and
+  the identity label) now live in `#moreMenu`; the real elements were MOVED
+  there rather than rebuilt, so their conditional visibility still works
+  untouched. `header>*{flex-shrink:0}` stops silent clipping, labels drop in
+  tiers (`.lbl2` first, `.lbl` later), and `#msg` is weighted to win the
+  leftover space so status text stays readable. Adding a control means
+  re-checking the fit at 1280 and 1440.
+- **Autosave is a per-person browser preference** (`jrd-autosave` in
+  localStorage, default on), toggled in the More menu. It gates the 30 s loop
+  but NOT the scheduled-publish poke. When it is off and files are dirty the
+  Save button goes amber, because "off" should never be discovered by losing
+  work.
+- **History** on the toolbar covers the page you are on. The schema has no
+  page-to-file mapping, so `pageFiles()` fetches the previewed page and reads
+  its `data-edit` file names; every managed site sends
+  `Access-Control-Allow-Origin: *`, which is what makes that possible. Falls
+  back to the registry's file list.
 - **users.json + drafts/ live in the PRIVATE `USERS_REPO`** — never move them
   to a public repo (password hashes, TOTP secrets, backup-code hashes).
 - `_lib.js` ⇄ `_auth.js` have a deliberate lazy circular require
