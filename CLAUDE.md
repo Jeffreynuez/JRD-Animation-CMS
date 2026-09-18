@@ -105,7 +105,7 @@ on every write, so anything new must be added there too).
 
 - **Vercel Hobby caps deployments at 12 serverless functions**, and api/ is
   at exactly 12 (underscore files are not functions). NEVER add a new api/
-  file - fold new server behaviour into an existing endpoint as a query-mode
+  file - fold new server behavior into an existing endpoint as a query-mode
   (media library lives in sign-upload.js ?list=1, version history in load.js
   ?history=1/?at=, the scheduled-publish sweep in drafts.js ?cron=1, the
   source-code export in sites.js ?download=<siteId>).

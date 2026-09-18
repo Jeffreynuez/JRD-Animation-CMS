@@ -163,7 +163,7 @@ async function sendMail(toEmail, toName, subject, html) {
 /* Invite / reset email.
    Built for email clients, not browsers: tables rather than divs (Outlook's Word
    engine ignores max-width on a div), a table-wrapped button (it ignores padding
-   on an <a>), every colour stated explicitly (clients that auto-invert for dark
+   on an <a>), every color stated explicitly (clients that auto-invert for dark
    mode otherwise produce unreadable pairs), and no images at all, since most
    clients block them by default and a header that vanishes is worse than none.
    The visible URL under the button is the fallback for anything that strips the

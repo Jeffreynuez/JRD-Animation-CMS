@@ -4,7 +4,7 @@
    GET ?download=id -> a short-lived GitHub archive link for that site's repo (see downloadSite).
    POST             -> { op:'add'|'edit', site:{...} } or { op:'delete', id } — mutates data/sites.json in the home repo.
    Auth-gated. The browser sends site details; the server validates and commits.
-   New behaviour rides here as a query mode: Vercel Hobby caps this project at 12
+   New behavior rides here as a query mode: Vercel Hobby caps this project at 12
    serverless functions and api/ is already at 12, so no new file may be added. */
 const { getRegistry, HOME_REPO, HOME_BRANCH, REGISTRY_PATH, checkAuth, gh } = require('./_lib.js');
 

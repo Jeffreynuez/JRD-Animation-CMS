@@ -688,9 +688,9 @@ function makeLibraryBtn(onUrl){
  return b;
 }
 
-/* ============ focal point (keeps the important spot centred in crops) ============ */
+/* ============ focal point (keeps the important spot centered in crops) ============ */
 function makeFocalBtn(getVal,setVal){
- const b=document.createElement('button');b.type='button';b.className='upbtn';b.textContent='◎ Focal';b.title='Mark the important spot — it stays centred when the image is cropped to fit';
+ const b=document.createElement('button');b.type='button';b.className='upbtn';b.textContent='◎ Focal';b.title='Mark the important spot — it stays centered when the image is cropped to fit';
  b.onclick=()=>{
   const raw=String(getVal()||'').trim();
   const o=cloudParts(raw);
@@ -1117,7 +1117,7 @@ async function showSelection(d){
    const fd=f(pk.key,'Text',String(pk.obj[pk.key]||'').length>70?T.AREA:T.TEXT);
    const md=()=>{st.dirty=true;renderSidebar();};
    body.appendChild(renderField(fd,pk.obj,md,{onChange:(fdef,val)=>vApply(d.edit,val)}));
-   if(siteHasFile('styles.json')){ /* colour/align styling only where the site can store + render it */
+   if(siteHasFile('styles.json')){ /* color/align styling only where the site can store + render it */
     try{await ensureFile('styles.json');}catch(e){}
     try{await ensureFile('theme.json');}catch(e){}
     if(!files['styles.json'])files['styles.json']={content:{},sha:null,dirty:false};

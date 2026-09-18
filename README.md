@@ -35,7 +35,7 @@ encoder so secrets never leave the browser.
   caps (10MB image / 100MB video), images stored web-lean via a signed
   incoming transformation (`c_limit,w_2600,h_2600`), a media library for
   reusing anything already uploaded, crop tool, and a focal-point picker so
-  the important part of a photo stays centred in every crop.
+  the important part of a photo stays centered in every crop.
 - **Working like a real editor** — Save (kept as a draft, restored next
   visit) is separate from Publish (live); autosave every 30s; undo/redo
   (Ctrl+Z / Ctrl+Y); per-section version history with one-click restore;
