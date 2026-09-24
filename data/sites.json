@@ -90,6 +90,35 @@
     "es/get-started.json",
     "theme.json"
    ]
+  },
+  {
+   "id": "jrdanimation",
+   "label": "JRD Animation website",
+   "repo": "Jeffreynuez/JRD-Animation-website",
+   "branch": "main",
+   "liveUrl": "https://jrdanimation.com",
+   "group": "",
+   "schema": "_schema.json",
+   "files": [
+    "pages.json",
+    "home.json",
+    "pricing.json",
+    "work.json",
+    "faq.json",
+    "contact.json",
+    "legal.json",
+    "theme.json",
+    "festival.json",
+    "pay.json",
+    "es/pages.json",
+    "es/home.json",
+    "es/pricing.json",
+    "es/work.json",
+    "es/faq.json",
+    "es/contact.json",
+    "es/legal.json",
+    "es/pay.json"
+   ]
   }
  ]
 }
