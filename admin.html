@@ -255,12 +255,11 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
       <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
       <div id="boot-extra" style="display:none">
         <input id="bname" type="text" placeholder="Your name" autocomplete="name">
-        <input id="bkey" type="password" placeholder="Legacy admin key (first run only)">
+        <input id="bkey" type="password" placeholder="Admin key (first run only)">
       </div>
       <div class="err" id="gate-err"></div>
       <button class="primary" id="login" style="width:100%">Enter</button>
       <button class="ghost" id="forgot" style="width:100%;margin-top:8px">Forgot password</button>
-      <button class="ghost" id="legacy" style="width:100%;margin-top:4px;font-size:11px;opacity:.65">Use legacy admin key</button>
     </div>
     <div id="gate-totp" style="display:none">
       <p class="as-hint">Enter the 6-digit code from your authenticator app.</p>
@@ -445,8 +444,9 @@ const normCdn=u=>String(u||'').trim().replace(/^CDN:(?!(?:image|video|raw)\/uplo
 const cdn=u=>u?normCdn(stripFp(String(u))).replace('CDN:',CDNP):u;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const key=()=>sessionStorage.getItem('jrd-admin-key')||'';
-const api=async(p,o={})=>{const r=await fetch(p,{...o,headers:{'x-admin-key':key(),'Content-Type':'application/json',...(o.headers||{})}});return{status:r.status,json:await r.json().catch(()=>({}))};};
+/* every call authenticates with the session cookie alone: the old shared
+   x-admin-key header is ignored by the API and no longer sent */
+const api=async(p,o={})=>{const r=await fetch(p,{...o,headers:{'Content-Type':'application/json',...(o.headers||{})}});return{status:r.status,json:await r.json().catch(()=>({}))};};
 /* VPAGES + SECTIONS are loaded per-site from data/_schema.json (see compileSchema) */
 
 /* ============ field kit ============ */
@@ -513,10 +513,13 @@ async function loadFile(fn){
  if(!site)throw new Error('No site is open.');
  const r=await api('/api/load?file='+encodeURIComponent(fn)+'&site='+encodeURIComponent(site.id));
  if(gen!==SITEGEN||site!==curSite)throw new Error('The site changed while '+fn+' was loading.');
- if(r.status===401){sessionStorage.removeItem('jrd-admin-key');location.reload();throw new Error('auth');}
+ if(r.status===401){location.reload();throw new Error('auth');}   /* the session ended: back to sign-in */
  if(r.status!==200)throw new Error(r.json.error||r.status);
  if(files[fn])return files[fn];
- files[fn]={content:r.json.content,sha:r.json.sha,dirty:false,draft:!!r.json.draft,publishAt:r.json.publishAt||null};
+ /* draftSha: the version of the stored draft this copy is based on (null when
+    there is none). Every save sends it back so a newer draft saved by someone
+    else in the meantime is caught instead of silently overwritten. */
+ files[fn]={content:r.json.content,sha:r.json.sha,dirty:false,draft:!!r.json.draft,publishAt:r.json.publishAt||null,draftSha:r.json.draftSha||null,conflict:false};
  if(r.json.publishAt)setMsg('Restored your saved draft of '+fn+' (scheduled to go live '+new Date(r.json.publishAt).toLocaleString()+').');
  else if(r.json.draft)setMsg('Restored your saved draft of '+fn+'. Publish when ready.');
  /* a freshly loaded draft differs from the published page in the frame, so paint
@@ -882,7 +885,7 @@ function renderSidebar(){
   if(child)b.style.paddingLeft='30px';
   const label=child?(s.label.split(' · ').slice(1).join(' · ')||s.label):s.label;
   const fst=files[s.file];
-  b.innerHTML=esc(label)+(fst&&fst.dirty?'<span class="dot">●</span>':(fst&&fst.draft?(fst.publishAt?'<span class="dot" style="color:#38bdf8" title="Scheduled: '+esc(new Date(fst.publishAt).toLocaleString())+'">●</span>':'<span class="dot" style="color:#f59e0b" title="Saved draft, not live yet">●</span>'):''));
+  b.innerHTML=esc(label)+(fst&&fst.conflict?'<span class="dot" style="color:#ef4444" title="Changed in another editor. Press Save to choose which version to keep.">●</span>':fst&&fst.dirty?'<span class="dot">●</span>':(fst&&fst.draft?(fst.publishAt?'<span class="dot" style="color:#38bdf8" title="Scheduled: '+esc(new Date(fst.publishAt).toLocaleString())+'">●</span>':'<span class="dot" style="color:#f59e0b" title="Saved draft, not live yet">●</span>'):''));
   b.onclick=()=>openSection(s.id);
   sb.appendChild(b);
  };
@@ -1486,15 +1489,65 @@ const futureAt=st=>{if(st.publishAt&&Date.parse(st.publishAt)>Date.now())return 
 /* One save request. The content is serialized once up front, and `changed`
    reports whether the file was edited while the request was in flight, so
    those keystrokes stay dirty for the next save instead of being marked clean. */
-async function postFile(site,fn,st,extra){
+async function postFile(site,fn,st,extra,force){
  const sent=JSON.stringify(st.content);
- const body=Object.assign({file:fn,content:JSON.parse(sent),sha:st.sha,site:site.id},extra||{});
+ /* draftSha is always sent (null when this copy saw no draft): the API answers
+    409 draft-conflict when someone else's newer draft is stored. force:true
+    only when the person chose "Keep mine". */
+ const body=Object.assign({file:fn,content:JSON.parse(sent),sha:st.sha,site:site.id,draftSha:st.draftSha||null},extra||{});
+ if(force)body.force=true;
  let r;
  try{r=await api('/api/save',{method:'POST',body:JSON.stringify(body)});}
  catch(e){return{ok:false,err:'network error, check your connection'};}
  const changed=JSON.stringify(st.content)!==sent;
+ if(r.status===409&&r.json&&r.json.code==='draft-conflict')
+  return{ok:false,status:409,changed,conflict:{by:r.json.by||'Another editor',savedAt:r.json.savedAt||null},err:'saved by '+(r.json.by||'another editor')+' in the meantime'};
  if(r.status!==200)return{ok:false,status:r.status,err:(r.json&&r.json.error)||('error '+r.status),changed};
+ /* every save answers with the draft version it left behind: the new draft's
+    sha, or null after a publish */
+ if(r.json&&Object.prototype.hasOwnProperty.call(r.json,'draftSha'))st.draftSha=r.json.draftSha||null;
+ st.conflict=false;
  return{ok:true,json:r.json||{},changed};
+}
+/* Someone else saved a newer draft of this file. Ask which version to keep;
+   resolves 'mine' | 'theirs' | 'cancel'. Same look as the schedule dialog. */
+function askConflict(fn,info){
+ return new Promise(done=>{
+  const ov=document.createElement('div');ov.className='cropov';
+  const panel=document.createElement('div');panel.className='croppanel';panel.style.maxWidth='min(480px,92vw)';panel.setAttribute('role','dialog');
+  const h=document.createElement('div');h.style.cssText='font:700 15px system-ui';h.textContent=fn+' was changed in another editor';
+  const t=Date.parse(info.savedAt||''),when=isNaN(t)?'':new Date(t).toLocaleString();
+  const p=document.createElement('div');p.style.cssText='font:400 12.5px/1.6 system-ui;color:#475569';
+  p.textContent=(info.by||'Another editor')+' saved newer changes to '+fn+(when?' at '+when:'')+'. Keep mine replaces their version with yours. Load theirs discards your unsaved edits to '+fn+' and shows their version.';
+  const bar=document.createElement('div');bar.className='cropbar';
+  const sp=document.createElement('div');sp.className='grow';bar.appendChild(sp);
+  const onKey=e=>{if(e.key==='Escape')fin('cancel');};
+  const fin=v=>{ov.remove();document.removeEventListener('keydown',onKey);done(v);};
+  const mk=(label,v,cls)=>{const x=document.createElement('button');x.type='button';x.textContent=label;if(cls)x.className=cls;x.dataset.choice=v;x.onclick=()=>fin(v);bar.appendChild(x);return x;};
+  const cancel=mk('Cancel','cancel');mk('Load theirs','theirs');mk('Keep mine','mine','primary');
+  panel.appendChild(h);panel.appendChild(p);panel.appendChild(bar);ov.appendChild(panel);document.body.appendChild(ov);
+  document.addEventListener('keydown',onKey);
+  cancel.focus();   /* a stray Enter must not overwrite someone else's work */
+ });
+}
+/* Load theirs: drop my copy (and anything bound to it), load the stored draft
+   and paint it onto the page */
+async function loadTheirs(fn){
+ forgetFile(fn);
+ try{await ensureFile(fn);}catch(e){return false;}
+ repaintPreview();
+ return true;
+}
+/* One file of a Save, Publish or Schedule. On a draft conflict the person
+   chooses; resolves the postFile result, or {theirs:true} / {cancel:true}. */
+async function postChoosing(site,fn,st,extra){
+ const r=await postFile(site,fn,st,extra);
+ if(!r.conflict)return r;
+ const choice=await askConflict(fn,r.conflict);
+ if(curSite!==site)return{ok:false,cancel:true};
+ if(choice==='mine')return postFile(site,fn,st,extra,true);
+ if(choice==='theirs'){const ok=await loadTheirs(fn);return ok?{ok:false,theirs:true,by:r.conflict.by}:{ok:false,err:'could not load the newer version'};}
+ return{ok:false,cancel:true};
 }
 async function saveDraftAll(){
  if(SAVING){busyMsg();return;}
@@ -1507,25 +1560,30 @@ async function saveDraftAll(){
   return;
  }
  SAVING=true;$('saveDraftBtn').disabled=true;
- const fails=[];
+ const fails=[],theirs=[];let stopped=null,saved=0;
  try{
   for(const [fn,st] of dirty){
    if(curSite!==site)break;
    setMsg('Saving '+fn+'…');
    const extra={draft:true,message:'cms: draft '+fn};
    const at=futureAt(st);if(at)extra.publishAt=at;   /* keep a pending schedule */
-   const r=await postFile(site,fn,st,extra);
+   const r=await postChoosing(site,fn,st,extra);
+   if(r.cancel){stopped=fn;break;}
+   if(r.theirs){theirs.push(fn+' (by '+r.by+')');continue;}
    if(!r.ok){fails.push(fn+' ('+r.err+')');continue;}
-   st.dirty=r.changed;st.draft=true;
+   st.dirty=r.changed;st.draft=true;saved++;
   }
  }finally{SAVING=false;$('saveDraftBtn').disabled=false;}
  if(curSite!==site)return;
  renderSidebar();refreshDrafts();
+ if(stopped){setMsg('Save stopped at '+stopped+'. Your edits to it (and to any file after it) are still unsaved.','err');return;}
  if(skipped.length)fails.push(skipped.join(', ')+' (not in this site’s list of editable files)');
- if(fails.length)setMsg('Saved with problems: '+fails.join('; '),'err');
- else setMsg(canDo('canPublish')
+ const note=theirs.length?' Loaded the newer '+theirs.join(', ')+'; your unsaved edits to '+(theirs.length>1?'those files':'it')+' were discarded.':'';
+ if(fails.length)setMsg('Saved with problems: '+fails.join('; ')+'.'+note,'err');
+ else if(!saved)setMsg(note.trim(),'ok');
+ else setMsg((canDo('canPublish')
   ?'Saved ✓ (kept in the editor, not live yet). Publish when you are ready.'
-  :'Saved ✓ and sent for review. Your admin will approve and publish.','ok');
+  :'Saved ✓ and sent for review. Your admin will approve and publish.')+note,'ok');
 }
 async function publishAll(){
  if(SAVING){busyMsg();return;}
@@ -1535,12 +1593,14 @@ async function publishAll(){
  if(!confirm('Publish changes to: '+list.map(([fn])=>fn).join(', ')+'?\nThe live site rebuilds automatically (about 1 minute).'))return;
  if(SAVING||curSite!==site){busyMsg();return;}   /* an autosave may have started while the dialog was open */
  SAVING=true;$('save').disabled=true;
- const fails=[];let okCount=0;
+ const fails=[],theirs=[];let okCount=0,stopped=null;
  try{
   for(const [fn,st] of list){
    if(curSite!==site)break;
    setMsg('Publishing '+fn+'…');
-   const r=await postFile(site,fn,st,{message:'cms: update '+fn});
+   const r=await postChoosing(site,fn,st,{message:'cms: update '+fn});
+   if(r.cancel){stopped=fn;break;}
+   if(r.theirs){theirs.push(fn+' by '+r.by);continue;}
    if(!r.ok){fails.push(fn+' ('+(r.status===409?'changed elsewhere since you opened it: press Save, then sign out and back in to reload it':r.err)+')');continue;}
    okCount++;
    if(r.json.draft){st.dirty=r.changed;st.draft=true;continue;} /* server downgraded to draft (no publish rights) */
@@ -1549,7 +1609,9 @@ async function publishAll(){
  }finally{SAVING=false;$('save').disabled=false;}
  if(curSite!==site)return;
  renderSidebar();refreshDrafts();
- if(fails.length)setMsg((okCount?'Partly published. Problems with: ':'Publish failed: ')+fails.join('; '),'err');
+ if(stopped)fails.push(stopped+' (stopped: your edits to it are still unsaved)');
+ if(theirs.length)fails.push(theirs.join(', ')+' (not published: you loaded that newer version instead)');
+ if(fails.length)setMsg((okCount?'Partly published. Not published: ':'Publish failed: ')+fails.join('; '),'err');
  if(okCount&&!fails.length)startPublishWatch();
  else if(okCount)setTimeout(()=>{if(curSite===site)startPublishWatch();},3500);
 }
@@ -1631,12 +1693,12 @@ function openSchedule(){
  panel.appendChild(h);panel.appendChild(p);panel.appendChild(inp);panel.appendChild(bar);ov.appendChild(panel);document.body.appendChild(ov);
  const close=()=>ov.remove();
  const mk=(t,fn2,cls2)=>{const x=document.createElement('button');x.type='button';x.textContent=t;if(cls2)x.className=cls2;x.onclick=fn2;bar.appendChild(x);return x;};
- mk('Clear schedule',async()=>{if(await schedSave(null))close();else info.textContent='Not saved yet. Try again in a moment.';});
+ mk('Clear schedule',async()=>{const ok=await schedSave(null);if(ok)close();else info.textContent='Not saved yet. Try again in a moment.';});
  mk('Cancel',close);
  mk('Schedule',async()=>{
   const t=new Date(inp.value);
   if(isNaN(t)||t.getTime()<Date.now()-60000){info.textContent='Pick a future time.';return;}
-  if(await schedSave(t.toISOString()))close();else info.textContent='Not scheduled yet. Try again in a moment.';
+  const ok=await schedSave(t.toISOString());if(ok)close();else info.textContent='Not scheduled yet. Try again in a moment.';
  },'primary');
  ov.addEventListener('mousedown',e=>{if(e.target===ov)close();});
 }
@@ -1650,7 +1712,9 @@ async function schedSave(publishAt){
    if(curSite!==site)return false;
    const extra={draft:true,message:'cms: schedule '+fn};
    if(publishAt)extra.publishAt=publishAt;
-   const r=await postFile(site,fn,st,extra);
+   const r=await postChoosing(site,fn,st,extra);
+   if(r.cancel){setMsg('Schedule stopped at '+fn+'. Your edits to it are still unsaved.','err');return 'cancel';}
+   if(r.theirs){setMsg('Loaded the newer '+fn+' from the other editor. Check it, then schedule again.','err');return 'cancel';}
    if(!r.ok){setMsg('Could not schedule '+fn+': '+r.err,'err');return false;}
    st.dirty=r.changed;st.draft=true;st.publishAt=publishAt||null;
   }
@@ -1677,43 +1741,56 @@ async function pokeScheduler(force){
  Object.values(files).forEach(st=>{const t=st&&st.publishAt?Date.parse(st.publishAt):NaN;if(t>Date.now())POKE_AT=Math.min(POKE_AT,t+15000);});
  let j=null;
  try{
-  const r=await fetch('/api/drafts?cron=1',{method:'POST',headers:{'x-admin-key':key()}});
+  const r=await fetch('/api/drafts?cron=1',{method:'POST'});
   j=await r.json().catch(()=>null);
   if(!r.ok||!j){POKE_AT=Math.min(POKE_AT,Date.now()+5*60000);return;}
  }catch(e){POKE_AT=Math.min(POKE_AT,Date.now()+5*60000);return;}
  if(!('next' in j))POKE_AT=Math.min(POKE_AT,Date.now()+5*60000);
  else if(j.next){const t=Date.parse(j.next);if(!isNaN(t))POKE_AT=Math.min(POKE_AT,Math.max(t+15000,Date.now()+60000));}
+ if(curSite!==site)return;
+ const ours=list=>(Array.isArray(list)?list:[]).map(String).filter(x=>x.indexOf(site.id+'/')===0).map(x=>x.slice(site.id.length+1));
  /* a schedule of ours just went live: it is no longer a pending draft, and
     its publishAt must not ride along on the next autosave */
- if(curSite!==site||!Array.isArray(j.published))return;
- const mine=j.published.filter(x=>String(x).indexOf(site.id+'/')===0).map(x=>String(x).slice(site.id.length+1)).filter(fn=>files[fn]);
- if(!mine.length)return;
- mine.forEach(fn=>{files[fn].publishAt=null;files[fn].draft=false;});
- renderSidebar();
- setMsg('Your scheduled changes to '+mine.join(', ')+' just went live.','ok');
+ const mine=ours(j.published).filter(fn=>files[fn]);
+ if(mine.length){
+  mine.forEach(fn=>{files[fn].publishAt=null;files[fn].draft=false;});
+  renderSidebar();
+  setMsg('Your scheduled changes to '+mine.join(', ')+' just went live.','ok');
+ }
+ /* held: due but not published because the live file changed after it was
+    scheduled. Said once per file per session (every sweep reports it again). */
+ const held=ours(j.held).filter(fn=>!HELD_SEEN.has(site.id+'/'+fn));
+ if(held.length){
+  held.forEach(fn=>HELD_SEEN.add(site.id+'/'+fn));
+  setMsg('The scheduled publish of '+held.join(', ')+' was held: the live '+(held.length>1?'files':'file')+' changed after it was scheduled. Open '+(held.length>1?'them':'it')+', check '+(held.length>1?'them':'it')+', and publish by hand.','err');
+ }
 }
+const HELD_SEEN=new Set();
 setInterval(async()=>{
  if(!curSite)return;
  pokeScheduler();
  if(document.hidden||SAVING||!autosaveOn())return;
  const site=curSite;
- const dirty=Object.entries(files).filter(([,st])=>st.dirty).filter(saveable);
+ /* a file in conflict waits for the person to choose (Save opens the dialog) */
+ const dirty=Object.entries(files).filter(([,st])=>st.dirty&&!st.conflict).filter(saveable);
  if(!dirty.length)return;
  SAVING=true;
- let ok=0;const bad=[];
+ let ok=0;const bad=[],clash=[];
  try{
   for(const [fn,st] of dirty){
    if(curSite!==site)break;
    const extra={draft:true,message:'cms: autosave '+fn};
    const at=futureAt(st);if(at)extra.publishAt=at;   /* keep a pending schedule, never a past one */
    const r=await postFile(site,fn,st,extra);
+   if(r.conflict){st.conflict=true;clash.push(fn+' was changed in another editor by '+r.conflict.by);continue;}   /* never a dialog from autosave */
    if(!r.ok){bad.push(fn+' ('+r.err+')');continue;}
    st.dirty=r.changed;st.draft=true;ok++;
   }
  }finally{SAVING=false;}
  if(curSite!==site)return;
  renderSidebar();
- if(bad.length)setMsg('Autosave failed for '+bad.join('; ')+'. Press Save to try again.','err');
+ if(clash.length)setMsg(clash.join('. ')+'. Press Save to choose which version to keep.'+(bad.length?' Autosave also failed for '+bad.join('; ')+'.':''),'err');
+ else if(bad.length)setMsg('Autosave failed for '+bad.join('; ')+'. Press Save to try again.','err');
  else if(ok&&!pubTimer)setMsg('Autosaved ✓ Draft kept in the editor.');
 },30000);
 
@@ -1785,11 +1862,14 @@ function initApp(){
  renderAutoBtn();updateSaveHint();
  renderSidebar();
  histPush();  /* baseline snapshot for undo */
- loadFrame();
- /* the drafts list does two jobs: the admin's Drafts button, and preloading
-    every file that has a saved draft, so the page shows the draft before
-    anyone can click and type over the stale published words */
- refreshDrafts({preload:true});
+ /* The drafts list does two jobs: the admin's Drafts button, and preloading
+    every file that has a saved draft. The preview waits for that preload (at
+    most 2.5 s), so when the page reports ready the drafts are already loaded
+    and repaintPreview paints them before anyone can click and type over the
+    published words. The 'text' handler guard stays as the fallback. */
+ const site=curSite;let framed=false;
+ const frame=()=>{if(framed||curSite!==site)return;framed=true;loadFrame();};
+ Promise.race([refreshDrafts({preload:true}),new Promise(r=>setTimeout(r,2500))]).then(frame,frame);
  /* fire any due scheduled publishes, then offer the tour to first-timers */
  pokeScheduler(true);
  setTimeout(()=>startTour(false),1500);
@@ -1803,7 +1883,7 @@ async function refreshDrafts(opts){
  if(!site||(!admin&&!preload)){btn.style.display='none';dot(false);return;}
  let drafts=null;
  try{
-  const r=await fetch('/api/drafts?site='+encodeURIComponent(site.id),{headers:{'x-admin-key':key()}});
+  const r=await fetch('/api/drafts?site='+encodeURIComponent(site.id));
   const j=await r.json().catch(()=>({}));
   if(r.ok)drafts=Array.isArray(j.drafts)?j.drafts:[];
  }catch(e){/* the button just stays as it was */}
@@ -1844,7 +1924,12 @@ function showDrafts(drafts){
   const mkb=(t,cls,fn)=>{const b=document.createElement('button');b.className=cls;b.style.cssText='font-size:11px;padding:6px 10px';b.textContent=t;b.onclick=fn;row.appendChild(b);};
   mkb('Approve & publish','primary',async()=>{
    if(curSite!==site||!okToDrop(d.file))return;
-   let r;try{r=await postJSON('/api/drafts',{action:'approve',site:site.id,file:d.file},true);}catch(e){alert('Network error. Try again.');return;}
+   let r;try{r=await postJSON('/api/drafts',{action:'approve',site:site.id,file:d.file});}catch(e){alert('Network error. Try again.');return;}
+   /* the live file changed after the draft was made: say so and let the admin decide */
+   if(r.status===409&&r.json&&r.json.code==='stale'){
+    if(!confirm((r.json.error||'The live '+d.file+' changed after this draft was made.')+'\n\nApprove anyway?'))return;
+    try{r=await postJSON('/api/drafts',{action:'approve',site:site.id,file:d.file,force:true});}catch(e){alert('Network error. Try again.');return;}
+   }
    if(r.status!==200){alert(r.json.error||'Failed');return;}
    if(curSite!==site)return;
    $('draftspanel').style.display='none';forgetFile(d.file);startPublishWatch();refreshDrafts();
@@ -1852,7 +1937,7 @@ function showDrafts(drafts){
   mkb('Reject','ghost',async()=>{
    if(!confirm('Discard the '+d.file+' draft?'))return;
    if(curSite!==site||!okToDrop(d.file))return;
-   let r;try{r=await postJSON('/api/drafts',{action:'reject',site:site.id,file:d.file},true);}catch(e){alert('Network error. Try again.');return;}
+   let r;try{r=await postJSON('/api/drafts',{action:'reject',site:site.id,file:d.file});}catch(e){alert('Network error. Try again.');return;}
    if(r.status!==200){alert(r.json.error||'Failed');return;}
    if(curSite!==site)return;
    row.remove();
@@ -2152,6 +2237,9 @@ function resetSiteState(){
  if(pubTimer){clearInterval(pubTimer);pubTimer=null;}
  DRAFTGEN++;
  closeSel();$('selbody').innerHTML='';
+ /* the old site's page must not keep talking to the editor (its 'text'
+    messages would land in the next site's files) while the next one loads */
+ if(vframe().getAttribute('src')&&vframe().getAttribute('src')!=='about:blank')vframe().src='about:blank';
  $('drawer').classList.remove('open');$('scrim').classList.remove('show');
  $('content').innerHTML='';$('sec-title').textContent='';
  closeMenu();
@@ -2169,7 +2257,7 @@ async function showPicker(have){
  pickErr('');
  let r=(have&&have.status===200)?have:null;   /* enter() just fetched it */
  if(!r){try{r=await api('/api/sites');}catch(e){r={status:0,json:{error:'network error'}};}}
- if(r.status===401){sessionStorage.removeItem('jrd-admin-key');location.reload();return;}
+ if(r.status===401){location.reload();return;}
  if(r.status!==200){pickErr('Could not load your sites: '+((r.json&&r.json.error)||('error '+r.status))+'. Reload to try again.');if(!SITES.length)return;}
  else SITES=(r.json&&r.json.sites)||[];
  PICK.q='';PICK.kb=-1;
@@ -2190,7 +2278,7 @@ async function selectSite(s){
   let r;
   try{r=await api('/api/load?file='+encodeURIComponent(s.schema||'_schema.json')+'&site='+encodeURIComponent(s.id));}
   catch(e){r={status:0,json:{error:'network error'}};}
-  if(r.status===401){sessionStorage.removeItem('jrd-admin-key');location.reload();return;}
+  if(r.status===401){location.reload();return;}
   if(r.status!==200||!r.json||!r.json.content){
    const outage=r.status===0||r.status===503;   /* a passing outage, not a broken site */
    const why=String((r.json&&r.json.error)||('error '+r.status)).replace(/[.\s]+$/,'');
@@ -2225,7 +2313,7 @@ function sectionVisible(sec){
  const p=((ME.perms||{})[curSite&&curSite.id])||{};const secs=p.sections||[];
  return secs.includes('*')||secs.includes(sec.id);
 }
-async function postJSON(p,body,adminKey){const h={'Content-Type':'application/json'};if(adminKey)h['x-admin-key']=key();const r=await fetch(p,{method:'POST',headers:h,body:JSON.stringify(body)});return{status:r.status,json:await r.json().catch(()=>({}))};}
+async function postJSON(p,body){const r=await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return{status:r.status,json:await r.json().catch(()=>({}))};}
 function renderMe(){const el2=$('meLabel');if(el2&&ME)el2.textContent=(ME.name||ME.email)+' · '+ME.role;const adm=(ME&&(ME.role==='owner'||ME.role==='admin'));const ub=$('usersBtn');if(ub)ub.style.display=adm?'':'none';const pu=$('picker-users');if(pu)pu.style.display=adm?'':'none';}
 async function enter(pre){
  let r=(pre&&pre.status===200)?pre:null;   /* the boot block fetched it in parallel with /me */
@@ -2247,7 +2335,7 @@ async function doLogin(){
  if(r.status===200&&r.json.totp){PENDING={mode:'password',email:body.email,password:body.password};showTotpStep();return;}
  if(r.status===200&&r.json.enrollRequired){PENDING={};startEnroll(r.json.preToken);return;}
  if(r.status===200){ME=r.json.user;renderMe();enter();return;}
- if(r.status===409&&r.json.error==='no-users'){$('boot-extra').style.display='block';$('gate-title').textContent='Create the owner account';$('gate-err').textContent='First run: add your name and the legacy admin key to create the owner account.';return;}
+ if(r.status===409&&r.json.error==='no-users'){$('boot-extra').style.display='block';$('gate-title').textContent='Create the owner account';$('gate-err').textContent='First run: add your name and the admin key to create the owner account.';return;}
  $('gate-err').textContent=r.json.error||('Login failed ('+r.status+')');
 }
 let PENDING={};
@@ -2327,10 +2415,6 @@ async function onGoogleCredential(resp){
 $('login').onclick=doLogin;
 $('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});   /* the only Enter handler: a second one sent every login twice */
 $('forgot').onclick=async()=>{const em=$('em').value.trim();if(!em){$('gate-err').textContent='Type your email above first, then click Forgot password.';return;}const r=await postJSON('/api/auth/reset',{email:em});$('gate-err').textContent=r.json.note||r.json.error||'Check your email.';};
-$('legacy').onclick=async()=>{const k=prompt('Legacy admin key:');if(!k)return;sessionStorage.setItem('jrd-admin-key',k);let r;try{r=await api('/api/sites');}catch(e){r={status:0,json:{}};}
- if(r.status===200){SITES=(r.json&&r.json.sites)||[];ME={id:'__legacy__',name:'Admin',email:'(legacy key)',role:'owner'};renderMe();$('gate').style.display='none';showPicker(r);}
- else if(r.status===401||r.status===403){sessionStorage.removeItem('jrd-admin-key');$('gate-err').textContent='That key was not accepted.';}
- else $('gate-err').textContent=(r.json&&r.json.error)||'The editor could not be reached. Try again in a moment.';};   /* an outage (503) is not a wrong key */
 /* Sign-out destroys the session before the page reloads, so ask about unsaved
    edits first: answering "Stay" at the browser's leave prompt afterwards would
    leave an editor that can no longer save anything. */
@@ -2338,7 +2422,8 @@ async function signOut(){
  if(Object.values(files).some(s=>s.dirty)&&!confirm('You have unsaved changes. Sign out and discard them?'))return;
  for(const k in files)delete files[k];
  try{await postJSON('/api/auth/logout',{});}catch(e){}
- sessionStorage.removeItem('jrd-admin-key');sessionStorage.removeItem('jrd-admin-site');location.reload();
+ sessionStorage.clear();   /* the remembered site, plus a stale admin key a pre-account tab may have left */
+ location.reload();
 }
 $('picker-logout').onclick=signOut;
 
@@ -2395,7 +2480,7 @@ function linkAlert(r,okMsg){
 async function showUsers(){
  $('userspanel').style.display='flex';
  const box=$('userlist');box.innerHTML='<p class="msg">Loading\u2026</p>';
- const r=await fetch('/api/auth/users',{headers:{'x-admin-key':key()}});
+ const r=await fetch('/api/auth/users');
  const j=await r.json().catch(()=>({}));
  if(r.status!==200){box.innerHTML='<p class="msg err">'+esc(j.error||r.status)+'</p>';return;}
  box.innerHTML='';
@@ -2407,8 +2492,8 @@ async function showUsers(){
    '<span class="mono" style="font-size:10px;color:#38bdf8;text-transform:uppercase">'+esc(u.role)+(u.status==='invited'?' · invited':'')+(u.twoFactor?' · 2FA✓':'')+'</span>';
   const mkb=(t,fn)=>{const b=document.createElement('button');b.className='ghost';b.style.cssText='font-size:11px;padding:5px 9px';b.textContent=t;b.onclick=fn;row.appendChild(b);};
   mkb('Access',()=>openAccess(u,row));
-  mkb(u.status==='active'?'Reset link':'Invite link',async()=>{const r2=await postJSON('/api/auth/users',{action:'resend',id:u.id},true);if(r2.status===200){linkAlert(r2.json,(r2.json.emailed?'Email sent. ':'Email not configured, ')+'link copied to clipboard.');}else alert(r2.json.error||'Failed');});
-  if(!(ME&&u.id===ME.id))mkb('Remove',async()=>{if(!confirm('Remove '+u.email+'?'))return;const r2=await postJSON('/api/auth/users',{action:'delete',id:u.id},true);if(r2.status===200)showUsers();else alert(r2.json.error||'Failed');});
+  mkb(u.status==='active'?'Reset link':'Invite link',async()=>{const r2=await postJSON('/api/auth/users',{action:'resend',id:u.id});if(r2.status===200){linkAlert(r2.json,(r2.json.emailed?'Email sent. ':'Email not configured, ')+'link copied to clipboard.');}else alert(r2.json.error||'Failed');});
+  if(!(ME&&u.id===ME.id))mkb('Remove',async()=>{if(!confirm('Remove '+u.email+'?'))return;const r2=await postJSON('/api/auth/users',{action:'delete',id:u.id});if(r2.status===200)showUsers();else alert(r2.json.error||'Failed');});
   box.appendChild(row);
  });
  if(!(j.users||[]).length)box.innerHTML='<p class="msg">No users yet. Send the first invite below.</p>';
@@ -2505,7 +2590,7 @@ function openAccess(u,row){
   if(u.twoFactor){
    const rb=document.createElement('button');rb.className='ghost';rb.style.cssText='font-size:11px;padding:6px 10px;margin-top:6px';rb.textContent='Reset their 2FA (lost phone)';
    rb.onclick=async()=>{if(!confirm('Remove '+u.email+"'s authenticator? They can sign in with just their password until they re-enroll."))return;
-    const r=await postJSON('/api/auth/users',{action:'update',id:u.id,totpReset:true},true);
+    const r=await postJSON('/api/auth/users',{action:'update',id:u.id,totpReset:true});
     if(r.status===200){box.remove();showUsers();}else alert(r.json.error||'Failed');};
    body.appendChild(rb);
   }
@@ -2515,7 +2600,7 @@ function openAccess(u,row){
  const foot=document.createElement('div');foot.className='acc-foot';
  const sv=document.createElement('button');sv.className='primary';sv.style.flex='1';sv.textContent='Save access';
  sv.onclick=async()=>{
-  const r=await postJSON('/api/auth/users',{action:'update',id:u.id,sites:st.sites,perms:st.perms,caps:st.caps,totpRequired:st.req},true);
+  const r=await postJSON('/api/auth/users',{action:'update',id:u.id,sites:st.sites,perms:st.perms,caps:st.caps,totpRequired:st.req});
   if(r.status===200){box.remove();showUsers();}else alert(r.json.error||'Failed');
  };
  const cc=document.createElement('button');cc.className='ghost';cc.textContent='Cancel';cc.onclick=()=>box.remove();
@@ -2525,7 +2610,7 @@ function openAccess(u,row){
 function await0(p){if(p&&p.catch)p.catch(()=>{});}
 /* --- self-service 2FA (header lock button) --- */
 $('secBtn').onclick=async()=>{
- if(!ME||ME.id==='__legacy__'){alert('Sign in with an account (not the legacy key) to manage 2FA.');return;}
+ if(!ME)return;
  if(ME.twoFactor){
   const c=prompt('2FA is ON for your account.\nTo turn it off, enter a current authenticator code (or a backup code):');
   if(!c)return;
@@ -2550,7 +2635,7 @@ $('drafts-close').onclick=()=>{$('draftspanel').style.display='none';};
 $('usersBtn').onclick=showUsers;
 $('inv-send').onclick=async()=>{
  $('inv-err').textContent='';
- const r=await postJSON('/api/auth/users',{action:'invite',email:$('inv-email').value,name:$('inv-name').value,role:$('inv-role').value},true);
+ const r=await postJSON('/api/auth/users',{action:'invite',email:$('inv-email').value,name:$('inv-name').value,role:$('inv-role').value});
  if(r.status===200){$('inv-email').value='';$('inv-name').value='';linkAlert(r.json,(r.json.emailed?'Invite email sent! Also ':'Email not configured, ')+'copied the invite link to your clipboard to share directly.');showUsers();}
  else $('inv-err').textContent=r.json.error||('Failed ('+r.status+')');
 };
@@ -2565,11 +2650,6 @@ $('inv-send').onclick=async()=>{
  /* an outage (503/5xx) is not a sign-out: say so rather than just showing the form */
  if(me&&me.status>=500){const j=await me.json().catch(()=>({}));$('gate-err').textContent=(j&&j.error)||'Sign-in is unavailable right now. Try again in a moment.';}
  initGoogle();   /* ~160KB of Google script + button frame, only for people who see the sign-in form */
- if(key()){
-  const r2=await sitesP;
-  if(r2&&r2.status===200){SITES=(r2.json&&r2.json.sites)||[];ME={id:'__legacy__',name:'Admin',email:'(legacy key)',role:'owner'};renderMe();$('gate').style.display='none';const last=sessionStorage.getItem('jrd-admin-site');const found=last&&SITES.find(s=>s.id===last);if(found)selectSite(found);else showPicker(r2);}
-  else if(r2&&r2.status>=500)$('gate-err').textContent=(r2.json&&r2.json.error)||'The editor could not be reached. Try again in a moment.';
- }
 })();
 /* ============ add-site form ============ */
 let addMode='add';
