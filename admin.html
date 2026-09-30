@@ -191,6 +191,32 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 .cropbar .grow{flex:1;font-size:12px;color:var(--mut)}
 .cropbar button{padding:8px 14px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;font:500 13px system-ui}
 .cropbar button.primary{background:var(--cyan);color:#fff;border-color:var(--cyan)}
+/* version history panel */
+.hpanel{width:min(720px,94vw);max-height:88vh}
+.hhead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font:700 15px system-ui}
+.hhead select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;font:500 13px system-ui;background:#fff;color:var(--ink);max-width:100%}
+.hnote{font:400 12.5px/1.5 system-ui;color:#475569}
+.hlist{overflow:auto;display:flex;flex-direction:column;gap:8px;min-height:60px;max-height:62vh;padding-right:2px}
+.hrow{border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px 12px;display:flex;flex-direction:column;gap:7px}
+.htop{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font:400 12.5px system-ui}
+.htop b{font-weight:700;white-space:nowrap}
+.htop .grow{flex:1}
+.hbadge{font:700 10px system-ui;letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border-radius:999px;background:#e2e8f0;color:#334155;white-space:nowrap}
+.hbadge.publish{background:#dcfce7;color:#166534}
+.hbadge.save{background:#e0f2fe;color:#075985}
+.hbadge.deploy{background:#ede9fe;color:#5b21b6}
+.hlatest{font:700 10px system-ui;letter-spacing:.08em;text-transform:uppercase;color:#16a34a}
+.hby{color:#64748b}
+.htitle{font:400 12.5px/1.45 system-ui;color:#334155}
+.hchips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font:400 12px system-ui;color:#64748b}
+.hchip{padding:4px 9px;border-radius:999px;border:1px solid var(--line);background:#f8fafc;font:500 11.5px system-ui;color:var(--ink);letter-spacing:0}
+.hchip:hover{border-color:var(--cyan);color:#0369a1;background:#f0f9ff}
+.hrest{padding:6px 11px;font:600 11.5px system-ui;letter-spacing:.02em}
+.hmore{align-self:flex-start;padding:4px 9px;font:500 11.5px system-ui;color:#475569;letter-spacing:0}
+.hsaves{display:flex;flex-direction:column;gap:4px;padding:2px 0 0 10px;border-left:2px solid var(--line)}
+.hsave{display:flex;gap:10px;align-items:center;font:400 12px system-ui;color:#334155}
+.hsave button{padding:3px 9px;font:500 11px system-ui;letter-spacing:0}
+@media (max-width:560px){.htop .grow{display:none}.hrest{margin-left:auto}}
 .libgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;overflow:auto;max-height:60vh;min-width:min(760px,84vw);padding:2px}
 .libcell{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;background:#1f2937;aspect-ratio:1;padding:0}
 .libcell img{width:100%;height:100%;object-fit:cover;display:block}
@@ -393,7 +419,7 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
     <span class="msg" id="msg">Click anything on the page to edit it.</span>
     <button class="ghost" id="undoBtn" title="Undo (Ctrl+Z)" disabled>&#8630;</button>
     <button class="ghost" id="redoBtn" title="Redo (Ctrl+Y)" disabled>&#8631;</button>
-    <button class="ghost" id="histBtn" title="Published versions of the page you are on">&#8635;<span class="lbl2"> History</span></button>
+    <button class="ghost" id="histBtn" title="Saves and published versions of the page you are on">&#8635;<span class="lbl2"> History</span></button>
     <button class="ghost" id="saveDraftBtn" title="Store your changes in the editor without touching the live site">Save</button>
     <button class="primary" id="save">Publish</button>
     <button class="ghost" id="moreBtn" title="More actions" aria-haspopup="true" aria-expanded="false">More &#9662;</button>
@@ -918,8 +944,8 @@ async function openSection(id){
  h2.textContent=s.label;
  const hb=document.createElement('button');hb.type='button';hb.textContent='⟲ History';
  hb.style.cssText='margin-left:14px;vertical-align:middle;padding:5px 11px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;font:500 11.5px system-ui;color:#475569';
- hb.title='Every published version of this section. Restore any of them.';
- hb.onclick=()=>showHistory(s.file);h2.appendChild(hb);
+ hb.title='Saves and published versions of this section. Restore any of them.';
+ hb.onclick=()=>openHistory({type:'section',id:s.id});h2.appendChild(hb);
  $('content').innerHTML='<p class="msg">Loading…</p>';
  /* the section's files load side by side, not one after another */
  try{await Promise.all([...new Set([s.file,...(s.blocks||[]).map(b=>b.file)].filter(Boolean))].map(ensureFile));}
@@ -1631,48 +1657,357 @@ function startPublishWatch(){
  },5000);
 }
 
-/* ============ version history & rollback ============ */
-async function showHistory(fn){
- const ov=document.createElement('div');ov.className='cropov';
- const panel=document.createElement('div');panel.className='croppanel';panel.style.minWidth='min(600px,92vw)';
- const list=document.createElement('div');list.style.cssText='overflow:auto;max-height:60vh;display:flex;flex-direction:column;gap:6px';
- const bar=document.createElement('div');bar.className='cropbar';
- const info=document.createElement('div');info.className='grow';info.textContent='Loading versions…';
- const cls=document.createElement('button');cls.textContent='Close';
- bar.appendChild(info);bar.appendChild(cls);
- panel.appendChild(list);panel.appendChild(bar);ov.appendChild(panel);document.body.appendChild(ov);
- const close=()=>ov.remove();cls.onclick=close;ov.addEventListener('mousedown',e=>{if(e.target===ov)close();});
- const site=curSite;
- let r;
- try{r=await api('/api/load?history=1&site='+encodeURIComponent(site.id)+'&file='+encodeURIComponent(fn));}
- catch(e){info.textContent='Could not load history (network error).';return;}
- if(r.status!==200){info.textContent=r.json.error||'Could not load history.';return;}
- const vs=r.json.versions||[];
- info.textContent=vs.length?'Every published version. Restoring loads it into the editor; nothing goes live until you Publish.':'No published versions yet.';
- vs.forEach((v,i)=>{
-  const row=document.createElement('button');row.type='button';
-  row.style.cssText='display:flex;gap:10px;align-items:baseline;text-align:left;border:1px solid var(--line);border-radius:9px;background:#fff;padding:9px 12px;cursor:pointer;font:400 12.5px system-ui';
-  const when=v.at?new Date(v.at).toLocaleString():'';
-  row.innerHTML='<b style="white-space:nowrap">'+esc(when)+'</b><span style="flex:1;color:#475569">'+esc(v.message)+'</span>'+(i===0?'<span style="color:#16a34a;font-weight:700">current</span>':'<span style="color:var(--cyan);font-weight:700">restore</span>');
-  row.onclick=async()=>{
-   if(i===0){close();return;}
-   if(!confirm('Load the version from '+when+' into the editor?\nYour current edits to this section are replaced (Undo brings them back). Nothing goes live until you Publish.'))return;
-   if(curSite!==site){close();return;}
-   let r2;
-   try{r2=await api('/api/load?site='+encodeURIComponent(site.id)+'&file='+encodeURIComponent(fn)+'&at='+encodeURIComponent(v.sha));}
-   catch(e){info.textContent='Could not load that version (network error).';return;}
-   if(r2.status!==200){info.textContent=r2.json.error||'Could not load that version.';return;}
-   try{await ensureFile(fn);}catch(e){}
-   if(curSite!==site){close();return;}
-   if(!files[fn]){info.textContent='Could not open '+fn+'.';return;}
-   const before=files[fn].content;
-   files[fn].content=r2.json.content;files[fn].dirty=true;
-   const structural=pushDiff(fn,before,files[fn].content);
-   closeSel();renderSidebar();try{if($('drawer').classList.contains('open'))openSection(curId);else renderBlocks();}catch(e){}
-   close();setMsg('Restored the version from '+when+' into the editor'+(structural?' (added or removed items show on the page after Reload)':'')+'. Review it, then Publish.','ok');
-  };
-  list.appendChild(row);
+/* ============ version history & rollback ============
+   History is organised by what people see: a page, one section, or the whole
+   site. /api/load?history=1 returns one timeline of publishes, code deploys
+   and editing sessions (saves), each with the schema sections it changed.
+   Restoring reads every file it needs as it was at that moment (?asof=) and
+   copies back only the paths the chosen sections own, into the editor: other
+   parts keep their current content, nothing goes live until Publish, and one
+   Undo takes the whole restore back. */
+/* ===== history regions: BEGIN (copied verbatim into admin.html; a test compares the two) =====
+   Which schema section owns which part of a data file. A block covers the
+   value at its path ('' is the file's top level); a path belongs to the
+   block with the longest matching path, so a nested block of another section
+   (about.story inside about) keeps what is under it. Two blocks on the same
+   path are told apart by their field keys. */
+function histBlocks(sections){
+ const out=[];
+ (sections||[]).forEach(s=>{
+  if(!s||s.group||!s.id)return;
+  (s.blocks||[]).forEach(b=>{
+   const file=(b&&b.file)||s.file;if(!file)return;
+   const keys=Array.isArray(b.fields)?b.fields.map(x=>String((x&&x.k)||'').split('.')[0]).filter(Boolean):null;
+   out.push({sec:String(s.id),file:String(file),path:String(b.path||''),keys});
+  });
  });
+ return out;
+}
+function histOwner(blocks,file,x){
+ let best=[],bl=-1;
+ blocks.forEach(b=>{
+  if(b.file!==file)return;
+  const P=b.path;
+  if(!(P===''||x===P||x.indexOf(P+'.')===0))return;
+  const L=P===''?0:P.split('.').length;
+  if(L>bl){best=[b];bl=L;}else if(L===bl)best.push(b);
+ });
+ if(!best.length)return '';
+ if(best.length>1){
+  const P=best[0].path,rest=x===P?'':(P===''?x:x.slice(P.length+1)),k=rest.split('.')[0];
+  const hit=best.find(b=>b.keys&&b.keys.indexOf(k)>=0);
+  if(hit)return hit.sec;
+ }
+ return best[0].sec;
+}
+/* sections with a block strictly inside path x */
+function histUnder(blocks,file,x){
+ const out=[];
+ blocks.forEach(b=>{if(b.file===file&&b.path!==x&&(x===''?b.path!=='':b.path.indexOf(x+'.')===0))out.push(b.sec);});
+ return out;
+}
+/* the paths where a and b differ: leaves, plus any list whose length changed
+   and any value whose type changed. An object that exists on one side only is
+   walked key by key, so each added or removed field is reported on its own. */
+function histChanged(a,b,x,out){
+ if(a===b)return;
+ const po=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
+ if((po(a)||po(b))&&(po(a)||a===undefined)&&(po(b)||b===undefined)){
+  const A=po(a)?a:{},B=po(b)?b:{};
+  Array.from(new Set(Object.keys(A).concat(Object.keys(B)))).forEach(k=>histChanged(A[k],B[k],x?x+'.'+k:k,out));
+  return;
+ }
+ if(Array.isArray(a)&&Array.isArray(b)&&a.length===b.length){a.forEach((v,i)=>histChanged(v,b[i],x?x+'.'+i:String(i),out));return;}
+ if(JSON.stringify(a)===JSON.stringify(b))return;
+ out.push(x);
+}
+/* section ids that changed between two versions of one file ('_other' for a
+   change no section owns). styles.json is keyed by the edited element's
+   stamp, "<file>#<path>", so each changed key maps to that element's section. */
+function histParts(blocks,file,a,b){
+ const out=new Set();
+ if(file==='styles.json'){
+  const A=(a&&typeof a==='object')?a:{},B=(b&&typeof b==='object')?b:{};
+  new Set(Object.keys(A).concat(Object.keys(B))).forEach(k=>{
+   if(JSON.stringify(A[k])===JSON.stringify(B[k]))return;
+   const i=k.indexOf('#');
+   out.add((i>0&&histOwner(blocks,k.slice(0,i),k.slice(i+1)))||'_other');
+  });
+  return Array.from(out);
+ }
+ const xs=[];
+ histChanged(a==null?{}:a,b==null?{}:b,'',xs);
+ xs.forEach(x=>{
+  const under=histUnder(blocks,file,x);
+  const own=histOwner(blocks,file,x);
+  if(own)out.add(own);else if(!under.length)out.add('_other');
+  under.forEach(s=>out.add(s));
+ });
+ return Array.from(out);
+}
+/* ===== history regions: END ===== */
+/* restore helper: the old values for paths owned by sections in `scope`,
+   current values everywhere else. Objects are merged key by key, and a key the
+   old version lacks keeps its current value, so a newer field the site's code
+   relies on is never removed; lists and plain values are taken whole. */
+function histMerge(bl,file,cur,old,x,scope){
+ if(old===undefined)return cur;
+ const po=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
+ if(po(cur)&&po(old)){
+  const res={};
+  Object.keys(cur).forEach(k=>{const v=histMerge(bl,file,cur[k],old[k],x?x+'.'+k:k,scope);if(v!==undefined)res[k]=v;});
+  Object.keys(old).forEach(k=>{if(k in cur)return;const v=histMerge(bl,file,undefined,old[k],x?x+'.'+k:k,scope);if(v!==undefined)res[k]=v;});
+  return res;
+ }
+ const own=scope.has(histOwner(bl,file,x)||'_other');
+ /* a list holding blocks restored differently from the list itself (colors
+    inside a customizer type) is walked item by item when it can be */
+ const mixed=histUnder(bl,file,x).some(id=>scope.has(id)!==own);
+ if(Array.isArray(cur)&&Array.isArray(old)&&mixed&&cur.length===old.length)
+  return cur.map((v,i)=>histMerge(bl,file,v,old[i],x?x+'.'+i:String(i),scope));
+ if(po(old)&&cur===undefined&&!own){const v=histMerge(bl,file,{},old,x,scope);return Object.keys(v).length?v:undefined;}
+ return own?deepCopy(old):cur;
+}
+/* styles.json: per-element keys; a key in scope takes its old value, or goes
+   away when it did not exist then (no custom style at that moment) */
+function histStyleMerge(bl,cur,old,scope){
+ const res=Object.assign({},cur||{}),A=(old&&typeof old==='object')?old:{};
+ new Set(Object.keys(res).concat(Object.keys(A))).forEach(k=>{
+  const i=k.indexOf('#');
+  if(!scope.has((i>0&&histOwner(bl,k.slice(0,i),k.slice(i+1)))||'_other'))return;
+  if(k in A)res[k]=deepCopy(A[k]);else delete res[k];
+ });
+ return res;
+}
+const histSecLabel=id=>id==='_other'?'Other settings':((SECTIONS.find(x=>x.id===id)||{}).label||id);
+const histPageLabel=pf=>((VPAGES.find(p=>p[0]===pf)||[pf,pf])[1]);
+/* the sections an editor sees on one page: every data-edit stamp on it,
+   mapped to the section that owns that path (null when the page cannot be read) */
+async function pageSections(pageFile){
+ const st=await pageStamps(pageUrlPath(pageFile));
+ if(!st)return null;
+ const bl=histBlocks(SECTIONS),out=new Set();
+ st.forEach(([f,p])=>{const id=histOwner(bl,f,p);if(id)out.add(id);});
+ return out;
+}
+async function histScope(v){
+ const bl=histBlocks(SECTIONS);
+ const visIds=new Set(SECTIONS.filter(x=>!x.group&&x.id&&sectionVisible(x)).map(x=>x.id));
+ const filesOf=ids=>{const f=new Set();bl.forEach(b=>{if(ids.has(b.sec))f.add(b.file);});if(siteHasFile('styles.json'))f.add('styles.json');return Array.from(f).filter(siteHasFile);};
+ const site=()=>{
+  const ids=new Set(visIds);if(meIsAdmin()||!ME)ids.add('_other');
+  const fl=(meIsAdmin()||!ME)?(curSite.files||[]).filter(f=>f!=='_schema.json'):filesOf(visIds);
+  return {kind:'site',what:'the whole site',sections:null,restore:ids,files:fl,btn:'Restore site',
+   note:'Every save and published version across the site. Restoring puts it back in the editor; nothing goes live until you Publish.'};
+ };
+ if(v.indexOf('page:')===0){
+  const pf=v.slice(5),lab=histPageLabel(pf);
+  const secs=await pageSections(pf);
+  if(secs===null){const sc=site();sc.note='Could not read which parts are on the '+lab+' page, so this shows the whole site.';return sc;}
+  const ids=new Set(Array.from(secs).filter(x=>visIds.has(x)));
+  return {kind:'page',page:pf,what:'the '+lab+' page',sections:ids,restore:ids,files:filesOf(ids),btn:'Restore page',
+   note:'Saves and published versions that changed the '+lab+' page. Restore the whole page, or click a part to restore only that part. Nothing goes live until you Publish.'};
+ }
+ if(v.indexOf('section:')===0){
+  const id=v.slice(8),ids=new Set([id]);
+  return {kind:'section',what:histSecLabel(id),sections:ids,restore:ids,files:filesOf(ids),btn:'Restore section',
+   note:'Saves and published versions that changed '+histSecLabel(id)+'. Nothing goes live until you Publish.'};
+ }
+ return site();
+}
+const histFmt=t=>new Date(t).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+const histFmtT=t=>new Date(t).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+function histWhen(row){
+ if(row.kind!=='save'||row.count<2||row.from===row.at)return histFmt(row.at);
+ const a=new Date(row.from),b=new Date(row.at);
+ return histFmt(row.from)+' - '+(a.toDateString()===b.toDateString()?histFmtT(row.at):histFmt(row.at));
+}
+function histBadge(row){
+ if(row.kind==='deploy')return 'Site update';
+ if(row.kind==='publish')return row.sub==='approved'?'Approved':row.sub==='scheduled'?'Scheduled publish':'Published';
+ return (row.scheduled?'Scheduled':'Saved')+(row.count>1?' \u00b7 '+row.count+' saves':'');
+}
+/* other pages that also show these sections (for the confirm box) */
+async function histShared(ids,curPage){
+ const others=VPAGES.map(p=>p[0]).filter(pf=>pf!==curPage);
+ if(!others.length)return [];
+ const per=await Promise.all(others.map(pf=>pageSections(pf).catch(()=>null)));
+ const lines=[];
+ ids.forEach(id=>{
+  const on=others.filter((pf,i)=>per[i]&&per[i].has(id));
+  if(!on.length)return;
+  lines.push(histSecLabel(id)+': '+(on.length===others.length&&others.length>1?'every page':on.map(histPageLabel).join(', ')));
+ });
+ return lines;
+}
+/* at: the moment to go back to; mode 'editor' (saves: what the editor showed)
+   or 'live' (publishes: what was live). ids: the sections to restore. */
+async function restoreVersion(o){
+ const site=curSite,gen=SITEGEN;if(!site)return false;
+ const bl=histBlocks(SECTIONS),ids=o.ids;
+ const need=o.files.filter(siteHasFile);
+ if(!need.length){setMsg('Nothing here can be restored with your account.','err');return false;}
+ let r;
+ try{r=await api('/api/load?asof='+encodeURIComponent(o.at)+'&mode='+o.mode+'&site='+encodeURIComponent(site.id)+'&files='+encodeURIComponent(need.join(',')));}
+ catch(e){setMsg('Could not load that version (network error).','err');return false;}
+ if(curSite!==site||gen!==SITEGEN)return false;
+ if(r.status!==200){setMsg((r.json&&r.json.error)||'Could not load that version.','err');return false;}
+ await Promise.all(need.map(fn=>ensureFile(fn).catch(()=>null)));
+ if(curSite!==site||gen!==SITEGEN)return false;
+ histPush();                                   /* capture pending edits: one Undo reverts the whole restore */
+ let structural=false,changed=0;
+ HIST.quiet=true;
+ try{
+  need.forEach(fn=>{
+   if(!files[fn])return;
+   const old=r.json.contents?r.json.contents[fn]:undefined;
+   if(old===undefined||(old===null&&fn!=='styles.json'))return;   /* the file did not exist then: left as it is */
+   const before=files[fn].content;
+   const after=fn==='styles.json'?histStyleMerge(bl,before,old,ids):histMerge(bl,fn,before,old,'',ids);
+   if(JSON.stringify(before)===JSON.stringify(after))return;
+   files[fn].content=after;files[fn].dirty=true;changed++;
+   if(pushDiff(fn,before,after))structural=true;
+  });
+ }finally{HIST.quiet=false;}
+ closeSel();renderSidebar();
+ try{if($('drawer').classList.contains('open'))openSection(curId);}catch(e){}
+ if(!changed){setMsg('Nothing to restore: '+o.what+' already matches '+o.when+'.','ok');return true;}
+ setMsg('Restored '+o.what+' to '+o.when+' in the editor'+(structural?' (added or removed items show on the page after Reload)':'')+'. Review it, then Publish.','ok');
+ return true;
+}
+let HISTPANEL=null;
+function closeHistory(){if(HISTPANEL)HISTPANEL.close();}
+async function openHistory(scope){
+ if(!curSite){setMsg('Open a site first.');return;}
+ closeHistory();
+ const site=curSite,gen=SITEGEN;
+ const ov=document.createElement('div');ov.className='cropov';
+ const panel=document.createElement('div');panel.className='croppanel hpanel';panel.setAttribute('role','dialog');panel.setAttribute('aria-label','Version history');
+ const head=document.createElement('div');head.className='hhead';
+ const ttl=document.createElement('span');ttl.textContent='History';
+ const sel=document.createElement('select');sel.className='hscope';sel.setAttribute('aria-label','Show history for');
+ const opt=(v,t)=>{const o=document.createElement('option');o.value=v;o.textContent=t;sel.appendChild(o);};
+ VPAGES.forEach(([pf,lab])=>opt('page:'+pf,lab+' page'));
+ if(scope.type==='section')opt('section:'+scope.id,histSecLabel(scope.id)+' (section)');
+ opt('site','Whole site');
+ sel.value=scope.type==='page'?'page:'+scope.page:scope.type==='section'?'section:'+scope.id:'site';
+ if(!sel.value)sel.value='site';
+ head.appendChild(ttl);head.appendChild(sel);
+ const note=document.createElement('div');note.className='hnote';
+ const list=document.createElement('div');list.className='hlist';
+ const bar=document.createElement('div');bar.className='cropbar';
+ const info=document.createElement('div');info.className='grow';
+ const older=document.createElement('button');older.type='button';older.textContent='Show older';older.style.display='none';
+ const cls=document.createElement('button');cls.type='button';cls.textContent='Close';
+ bar.appendChild(info);bar.appendChild(older);bar.appendChild(cls);
+ panel.appendChild(head);panel.appendChild(note);panel.appendChild(list);panel.appendChild(bar);
+ ov.appendChild(panel);document.body.appendChild(ov);
+ const onKey=e=>{if(e.key==='Escape')close();};
+ const close=()=>{ov.remove();document.removeEventListener('keydown',onKey);if(HISTPANEL===me)HISTPANEL=null;};
+ const me={close};HISTPANEL=me;
+ document.addEventListener('keydown',onKey);
+ cls.onclick=close;ov.addEventListener('mousedown',e=>{if(e.target===ov)close();});
+ const alive=()=>HISTPANEL===me&&curSite===site&&gen===SITEGEN;
+ let run=0;
+ async function restoreFrom(at,mode,ids,what,sc){
+  const when=histFmt(at);
+  let lines=[];
+  if(sc.kind!=='site'){try{lines=await histShared(Array.from(ids),sc.page);}catch(e){}}
+  if(!alive())return;
+  const msg='Put '+what+' back the way it was on '+when+'?'+
+   (lines.length?'\n\nThis also changes other pages:\n- '+lines.join('\n- '):'')+
+   '\n\nYour current edits to '+(ids.size===1&&sc.kind!=='site'?'this part':'these parts')+' are replaced (Undo brings them back). Nothing goes live until you Publish.';
+  if(!confirm(msg))return;
+  if(!alive())return;
+  const files0=[];histBlocks(SECTIONS).forEach(b=>{if(ids.has(b.sec)&&files0.indexOf(b.file)<0)files0.push(b.file);});
+  if(siteHasFile('styles.json')&&files0.indexOf('styles.json')<0)files0.push('styles.json');
+  const fl=ids.has('_other')?sc.files:files0;          /* unowned paths can be in any file */
+  info.textContent='Restoring…';
+  const ok=await restoreVersion({at,mode,ids,files:fl,what,when});
+  if(ok&&alive())close();else if(alive())info.textContent='';
+ }
+ function rowEl(row,sc,latest){
+  const el=document.createElement('div');el.className='hrow';
+  const top=document.createElement('div');top.className='htop';
+  const when=document.createElement('b');when.textContent=histWhen(row);top.appendChild(when);
+  const bd=document.createElement('span');bd.className='hbadge '+row.kind;bd.textContent=histBadge(row);top.appendChild(bd);
+  if(latest){const l=document.createElement('span');l.className='hlatest';l.textContent='Latest';top.appendChild(l);}
+  if(row.by){const b=document.createElement('span');b.className='hby';b.textContent='by '+row.by;top.appendChild(b);}
+  const g=document.createElement('span');g.className='grow';top.appendChild(g);
+  const mode=row.kind==='save'?'editor':'live';
+  const rb=document.createElement('button');rb.type='button';rb.className='hrest';rb.textContent=sc.btn;
+  rb.onclick=()=>restoreFrom(row.at,mode,sc.restore,sc.what,sc);
+  top.appendChild(rb);el.appendChild(top);
+  if(row.kind==='deploy'&&row.title){const t=document.createElement('div');t.className='htitle';t.textContent=row.title;el.appendChild(t);}
+  if(sc.kind!=='section'){
+   const chips=document.createElement('div');chips.className='hchips';
+   if(row.parts===null)chips.textContent='What changed is not known for this entry.';
+   else{
+    const mine=row.parts.filter(p=>sc.kind==='site'?sc.restore.has(p):sc.sections.has(p));
+    if(!mine.length)chips.textContent='No visible changes.';
+    else{
+     const lab=document.createElement('span');lab.textContent='Changed:';chips.appendChild(lab);
+     mine.forEach(p=>{
+      const c=document.createElement('button');c.type='button';c.className='hchip';c.textContent=histSecLabel(p);
+      c.title='Restore only '+histSecLabel(p)+' to this moment';
+      c.onclick=()=>restoreFrom(row.at,mode,new Set([p]),histSecLabel(p),sc);
+      chips.appendChild(c);
+     });
+    }
+   }
+   el.appendChild(chips);
+  }
+  if(row.kind==='save'&&row.saves&&row.saves.length>1){
+   const times=[];row.saves.forEach(x=>{const k=String(x.at).slice(0,19);if(!times.some(y=>y.k===k))times.push({k,at:x.at});});
+   if(times.length>1){
+    const mb=document.createElement('button');mb.type='button';mb.className='hmore';mb.textContent='Show each save ('+times.length+')';
+    let box=null;
+    mb.onclick=()=>{
+     if(box){box.remove();box=null;mb.textContent='Show each save ('+times.length+')';return;}
+     box=document.createElement('div');box.className='hsaves';
+     times.forEach(tt=>{
+      const ln=document.createElement('div');ln.className='hsave';
+      const w=document.createElement('span');w.textContent=histFmt(tt.at);ln.appendChild(w);
+      const b=document.createElement('button');b.type='button';b.textContent='Restore';
+      b.onclick=()=>restoreFrom(tt.at,'editor',sc.restore,sc.what,sc);
+      ln.appendChild(b);box.appendChild(ln);
+     });
+     el.appendChild(box);mb.textContent='Hide each save';
+    };
+    el.appendChild(mb);
+   }
+  }
+  return el;
+ }
+ async function load(){
+  const my=++run;
+  list.innerHTML='';info.textContent='Loading history…';older.style.display='none';note.textContent='';
+  let sc;
+  try{sc=await histScope(sel.value);}catch(e){sc=null;}
+  if(my!==run||!alive())return;
+  if(!sc){info.textContent='Could not work out what to show.';return;}
+  note.textContent=sc.note;
+  if(!sc.files.length||(sc.sections&&!sc.sections.size)){info.textContent='Nothing here is editable with your account.';return;}
+  let until=null,count=0;
+  const page=async()=>{
+   older.disabled=true;
+   const q='/api/load?history=1&site='+encodeURIComponent(site.id)+'&files='+encodeURIComponent(sc.files.join(','))+
+    (sc.sections?'&sections='+encodeURIComponent(Array.from(sc.sections).join(',')):'')+(until?'&until='+encodeURIComponent(until):'');
+   let r;
+   try{r=await api(q);}catch(e){r={status:0,json:{}};}
+   if(my!==run||!alive())return;
+   older.disabled=false;
+   if(r.status!==200){info.textContent=(r.json&&r.json.error)||'Could not load history.';return;}
+   (r.json.rows||[]).forEach(row=>{list.appendChild(rowEl(row,sc,count===0));count++;});
+   until=r.json.more?r.json.until:null;
+   older.style.display=until?'':'none';
+   info.textContent=r.json.savesMissing?'Saves could not be listed just now; published versions are shown.':(count?'':'No saves or published versions yet.');
+  };
+  older.onclick=page;
+  await page();
+ }
+ sel.onchange=load;
+ load();
 }
 
 /* ============ scheduled publishing ============ */
@@ -1858,7 +2193,7 @@ function initApp(){
  $('moreBtn').onclick=()=>toggleMenu($('moreMenu'),$('moreBtn'));
  $('moreMenu').onclick=e=>{const b=e.target.closest('button');if(b&&b.id!=='autoBtn')closeMenu();};   /* assigned, not added: initApp runs on every site open */
  $('autoBtn').onclick=()=>setAutosave(!autosaveOn());
- $('histBtn').onclick=openHistoryMenu;
+ $('histBtn').onclick=()=>openHistory({type:'page',page:$('vpage').value});
  renderAutoBtn();updateSaveHint();
  renderSidebar();
  histPush();  /* baseline snapshot for undo */
@@ -2017,43 +2352,32 @@ function setAutosave(on){
           :'Autosave off: your changes are only kept when you press Save.',on?'ok':'');
 }
 
-/* ---------- which data files back the page in the preview ----------
-   The schema has no page-to-file mapping, but the rendered page carries a
-   data-edit="<file>#<path>" on every editable element, and every managed site
-   serves Access-Control-Allow-Origin: *, so the editor can just read the page
-   and ask it. Falls back to the site's whole file list if that ever fails. */
-const PAGEFILES={};
-async function pageFiles(){
- const pg=pagePath(),ck=(curSite?curSite.id:'')+'|'+pg;   /* keyed by site: two sites share page names */
- if(PAGEFILES[ck])return PAGEFILES[ck];
+/* ---------- which parts of the site a page shows ----------
+   The schema has no page-to-section mapping, but the rendered page carries a
+   data-edit="<file>#<path>" on every editable element (data-edit-item on list
+   items), and every managed site serves Access-Control-Allow-Origin: *, so
+   the editor can read the page and ask it. Resolves [[file, path], ...], or
+   null when the page cannot be read (a failed read is retried next time). */
+const PAGESTAMPS={};
+const pageUrlPath=pf=>String(pf||'').replace(/(^|\/)index\.html$/,'$1').replace(/\.html$/,'');
+function pageStamps(pg){
+ const ck=(curSite?curSite.id:'')+'|'+pg;   /* keyed by site: two sites share page names */
+ if(PAGESTAMPS[ck])return PAGESTAMPS[ck];
  const base=siteBase();
- let out=[];
- try{
-  if(!base)throw new Error('no live URL');
-  const r=await fetch(base+'/'+pg,{cache:'no-store'});
-  if(r.ok){
-   const html=await r.text();
-   const seen={};
-   (html.match(/data-edit(?:-item)?="[^"#]+#/g)||[]).forEach(m=>{
-    const f=m.replace(/^data-edit(?:-item)?="/,'').slice(0,-1);
-    if(f)seen[f]=1;
-   });
-   out=Object.keys(seen);
-  }
- }catch(e){/* fall through to the registry list */}
- if(!out.length)out=((curSite&&curSite.files)||[]).slice();
- PAGEFILES[ck]=out;
- return out;
-}
-async function openHistoryMenu(){
- if(!curSite){setMsg('Open a site first.');return;}
- const btn=$('histBtn');
- btn.disabled=true;                       /* label holds a .lbl span, so do not rewrite it */
- let fs=[];
- try{fs=await pageFiles();}finally{btn.disabled=false;}
- if(!fs.length){setMsg('No editable files found for this page.');return;}
- if(fs.length===1){showHistory(fs[0]);return;}
- popMenu(btn,fs.map(f=>({label:f,hint:'Published versions',onClick:()=>showHistory(f)})));
+ const p=(async()=>{
+  if(!base)return null;
+  try{
+   const r=await fetch(base+'/'+pg,{cache:'no-store'});
+   if(!r.ok)return null;
+   const html=await r.text(),out=[];
+   (html.match(/data-edit="[^"#]+#[^"]*"/g)||[]).forEach(m=>{const v=m.slice(11,-1),i=v.indexOf('#');out.push([v.slice(0,i),v.slice(i+1)]);});
+   (html.match(/data-edit-item="[^"#]+#[^"#]*#/g)||[]).forEach(m=>{const v=m.slice(16,-1),i=v.indexOf('#');out.push([v.slice(0,i),v.slice(i+1)]);});
+   return out;
+  }catch(e){return null;}
+ })();
+ PAGESTAMPS[ck]=p;
+ p.then(v=>{if(v===null&&PAGESTAMPS[ck]===p)delete PAGESTAMPS[ck];});
+ return p;
 }
 const lsJSON=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v||d;}catch(e){return d;}};
 let PICK={q:'',sort:lsGet(PK.sort,'group'),dense:lsGet(PK.dense,'0')==='1',kb:-1,rows:[]};
@@ -2232,7 +2556,8 @@ function resetSiteState(){
  SITEGEN++;
  for(const k in files)delete files[k];
  for(const k in LOADING)delete LOADING[k];
- for(const k in PAGEFILES)delete PAGEFILES[k];
+ for(const k in PAGESTAMPS)delete PAGESTAMPS[k];
+ closeHistory();
  clearTimeout(HIST.t);HIST.t=null;HIST.stack=[];HIST.idx=-1;histBtns();   // undo history belongs to the old site
  if(pubTimer){clearInterval(pubTimer);pubTimer=null;}
  DRAFTGEN++;
