@@ -2,11 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Editor — JRD</title>
+<title>Editor · JRD</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <style>
 :root{--ink:#0f172a;--mut:#5a6478;--line:#dce2e9;--cyan:#0ea5e9;--cyan-d:#38bdf8;--bg:#eef1f5;--hdr:56px}
 *{box-sizing:border-box}
@@ -246,7 +244,7 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 <body>
 <div id="gate" class="gate">
   <div class="box">
-    <div class="mono" style="color:#38bdf8">&mdash; JRD SITE EDITOR</div>
+    <div class="mono" style="color:#38bdf8">JRD SITE EDITOR</div>
     <h1 id="gate-title">Sign in</h1>
     <div id="gate-login">
       <div id="gsi-wrap" style="display:none">
@@ -281,11 +279,12 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
       <input id="enroll-code" inputmode="numeric" autocomplete="one-time-code" placeholder="Enter the 6-digit code to confirm" style="text-align:center;margin-top:10px">
       <div class="err" id="enroll-err"></div>
       <button class="primary" id="enroll-go" style="width:100%">Confirm &amp; continue</button>
+      <button class="ghost" id="enroll-cancel" style="width:100%;margin-top:8px;display:none">Cancel</button>
     </div>
     <div id="gate-backup" style="display:none">
-      <p class="as-hint"><b>Save these backup codes now</b> &mdash; each works once if you lose your authenticator. They will not be shown again.</p>
+      <p class="as-hint"><b>Save these backup codes now.</b> Each works once if you lose your authenticator. They will not be shown again.</p>
       <div id="backup-codes" class="mono" style="font-size:14px;line-height:2;background:#0b1220;border:1px solid #1e293b;border-radius:8px;padding:12px;column-count:2;user-select:all"></div>
-      <button class="primary" id="backup-done" style="width:100%;margin-top:10px">I saved them &mdash; continue</button>
+      <button class="primary" id="backup-done" style="width:100%;margin-top:10px">I saved them, continue</button>
     </div>
     <div id="gate-setpw" style="display:none">
       <p class="as-hint">Choose a password for your account (at least 8 characters).</p>
@@ -300,7 +299,7 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 <div id="picker" class="gate" style="display:none">
   <div class="box pbox" style="width:min(760px,94vw)">
     <div class="phead">
-      <div class="mono" style="color:#38bdf8">— Choose a site</div>
+      <div class="mono" style="color:#38bdf8">Choose a site</div>
       <h1 style="margin:8px 0 14px">Your websites</h1>
       <div class="pctl">
         <input id="site-q" type="search" placeholder="Search name, group, repo or URL" autocomplete="off" spellcheck="false" aria-label="Search sites">
@@ -312,6 +311,7 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
         <button class="ghost" id="site-density" title="Switch between preview cards and a compact list">Compact</button>
       </div>
       <div class="pcount" id="site-count"></div>
+      <div class="err" id="pick-err" style="text-align:left;min-height:0;margin:-4px 0 10px"></div>
     </div>
     <div id="sitelist"></div>
     <div class="pfoot">
@@ -323,7 +323,7 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 
 <div id="addsite" class="gate" style="display:none;background:#0d1117f2">
   <div class="box" style="width:min(540px,92vw);max-height:92vh;overflow:auto">
-    <div class="mono" style="color:#38bdf8">— Add a website</div>
+    <div class="mono" style="color:#38bdf8">Add a website</div>
     <h1 id="as-title" style="font-size:20px;margin:8px 0 10px">New site</h1>
     <p class="as-hint" id="as-hint">The repo needs a <code>data/_schema.json</code>, and the CMS's GitHub token must be scoped to it. Leave “Editable files” blank to auto-detect them from that schema.</p>
     <label class="as-l">Label</label>
@@ -339,7 +339,7 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
     <label class="as-l">Group <span class="as-opt">(optional, groups the site picker)</span></label>
     <input id="as-group" placeholder="Clients" autocomplete="off" list="as-groups">
     <datalist id="as-groups"></datalist>
-    <label class="as-l">Editable files <span class="as-opt">(optional — one per line)</span></label>
+    <label class="as-l">Editable files <span class="as-opt">(optional, one per line)</span></label>
     <textarea id="as-files" rows="3" placeholder="pages.json&#10;home.json"></textarea>
     <div class="err" id="as-err"></div>
     <div style="display:flex;gap:10px;margin-top:4px">
@@ -351,7 +351,7 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 
 <div id="draftspanel" class="gate" style="display:none;background:#0d1117f2">
   <div class="box" style="width:min(640px,94vw);max-height:92vh;overflow:auto">
-    <div class="mono" style="color:#38bdf8">&mdash; Pending changes</div>
+    <div class="mono" style="color:#38bdf8">Pending changes</div>
     <h1 style="font-size:20px;margin:8px 0 4px">Awaiting your approval</h1>
     <div id="draftlist" style="margin:14px 0"></div>
     <button class="ghost" id="drafts-close" style="width:100%">Close</button>
@@ -360,9 +360,9 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
 
 <div id="userspanel" class="gate" style="display:none;background:#0d1117f2">
   <div class="box" style="width:min(720px,94vw);max-height:92vh;overflow:auto">
-    <div class="mono" style="color:#38bdf8">&mdash; Users &amp; access</div>
+    <div class="mono" style="color:#38bdf8">Users &amp; access</div>
     <h1 style="font-size:20px;margin:8px 0 4px">Team &amp; clients</h1>
-    <p class="as-hint">Invite people by email &mdash; they set their own password from the link. New users can access <b>nothing</b> until you open their <b>Access</b> sheet and grant sites, sections, and capabilities.</p>
+    <p class="as-hint">Invite people by email. They set their own password from the link. New users can access <b>nothing</b> until you open their <b>Access</b> sheet and grant sites, sections, and capabilities.</p>
     <div id="userlist" style="margin:14px 0"></div>
     <div style="border-top:.5px solid #263042;padding-top:14px">
       <label class="as-l">Invite by email</label>
@@ -370,7 +370,7 @@ header .msg.ok{color:#6ee7b7}header .msg.err{color:#fca5a5}
       <label class="as-l">Name</label>
       <input id="inv-name" placeholder="Client name" autocomplete="off">
       <label class="as-l">Role</label>
-      <select id="inv-role"><option value="editor">Editor &mdash; edits site content</option><option value="admin">Admin &mdash; can also manage users</option></select>
+      <select id="inv-role"><option value="editor">Editor (edits site content)</option><option value="admin">Admin (can also manage users)</option></select>
       <div class="err" id="inv-err"></div>
       <div style="display:flex;gap:10px;margin-top:8px">
         <button class="primary" id="inv-send" style="flex:1">Send invite</button>
@@ -438,7 +438,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 let CDNP='https://res.cloudinary.com/dfmofrlt3/';
 const stripFp=u=>String(u||'').replace(/#fp=[\d.]+,[\d.]+$/,'');
 const fpOf=u=>{const m=String(u||'').match(/#fp=([\d.]+),([\d.]+)$/);return m?{x:+m[1],y:+m[2]}:null;};
-const cdn=u=>u?stripFp(String(u)).replace('CDN:',CDNP):u;
+/* "CDN:<public_id>" (hand-authored values such as GC Windsor's
+   CDN:gcwindsor/photos/x) is shorthand for an image upload, exactly as the
+   sites' build.js reads it. Expand it so previews, crop and focal point work. */
+const normCdn=u=>String(u||'').trim().replace(/^CDN:(?!(?:image|video|raw)\/upload\/)/,'CDN:image/upload/');
+const cdn=u=>u?normCdn(stripFp(String(u))).replace('CDN:',CDNP):u;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const key=()=>sessionStorage.getItem('jrd-admin-key')||'';
@@ -459,7 +463,8 @@ function compileSchema(json){
  /* each managed site declares its own Cloudinary cloud + media folder */
  SITE_CLOUD=json.cloudName||'';
  SITE_FOLDER=json.mediaFolder||'';
- if(json.cloudName)CDNP='https://res.cloudinary.com/'+json.cloudName+'/';
+ /* always reset: a schema without cloudName must not inherit the previous site's cloud */
+ CDNP='https://res.cloudinary.com/'+(json.cloudName||'dfmofrlt3')+'/';
  SECTIONS=(json.sections||[]).map(s=>{
   if(s.group)return s;
   const blocks=(s.blocks||[]).map(b=>{
@@ -483,17 +488,37 @@ let curSite=null;   // selected site {id,label,liveUrl,schema,files}
 const siteHasFile=fn=>!!(curSite&&Array.isArray(curSite.files)&&curSite.files.length&&curSite.files.includes(fn));
 let SITES=[];       // registry from /api/sites
 const section=()=>SECTIONS.find(s=>s.id===curId);
-const resolve=(o,p)=>p?p.split('.').reduce((x,k)=>x&&x[k],o):o;
-function setPath(c,p,v){const ks=p.split('.');let o=c;for(let i=0;i<ks.length-1;i++)o=o[ks[i]];o[ks[ks.length-1]]=v;}
-function getParent(c,p){const ks=p.split('.');let o=c;for(let i=0;i<ks.length-1;i++)o=o[ks[i]];return{obj:o,key:ks[ks.length-1]};}
-async function ensureFile(fn){
- if(files[fn])return files[fn];
- const r=await api('/api/load?file='+fn+'&site='+encodeURIComponent(curSite.id));
+/* Paths arrive from the page (data-edit stamps) as well as from the schema, so
+   a key that reaches Object.prototype is refused rather than written. */
+const BADKEY=/(^|\.)(__proto__|constructor|prototype)(\.|$)/;
+const okPath=p=>{p=String(p);if(BADKEY.test(p))throw new Error('Refused an unsafe data path.');return p;};
+const resolve=(o,p)=>p?okPath(p).split('.').reduce((x,k)=>x&&x[k],o):o;
+function walk(c,p){const ks=okPath(p).split('.');let o=c;for(let i=0;i<ks.length-1;i++){o=o==null?o:o[ks[i]];}
+ if(o==null||typeof o!=='object')throw new Error('Nothing at '+p+' in this file yet.');return{obj:o,key:ks[ks.length-1]};}
+function setPath(c,p,v){const w=walk(c,p);w.obj[w.key]=v;}
+function getParent(c,p){return walk(c,p);}
+/* One request per file however many callers ask while it is in flight: a
+   click on the page ('select') plus the first keystroke ('text') used to load
+   the same file several times, each response replacing files[fn], so typed
+   text or the side panel ended up bound to an orphaned copy. */
+const LOADING={};
+let SITEGEN=0;       // bumped by resetSiteState(): late responses from a previous site are dropped
+function ensureFile(fn){
+ if(files[fn])return Promise.resolve(files[fn]);
+ if(!LOADING[fn]){const p=loadFile(fn).finally(()=>{if(LOADING[fn]===p)delete LOADING[fn];});LOADING[fn]=p;}
+ return LOADING[fn];
+}
+async function loadFile(fn){
+ const site=curSite,gen=SITEGEN;
+ if(!site)throw new Error('No site is open.');
+ const r=await api('/api/load?file='+encodeURIComponent(fn)+'&site='+encodeURIComponent(site.id));
+ if(gen!==SITEGEN||site!==curSite)throw new Error('The site changed while '+fn+' was loading.');
  if(r.status===401){sessionStorage.removeItem('jrd-admin-key');location.reload();throw new Error('auth');}
  if(r.status!==200)throw new Error(r.json.error||r.status);
+ if(files[fn])return files[fn];
  files[fn]={content:r.json.content,sha:r.json.sha,dirty:false,draft:!!r.json.draft,publishAt:r.json.publishAt||null};
- if(r.json.publishAt)setMsg('Restored your saved draft of '+fn+' — scheduled to go live '+new Date(r.json.publishAt).toLocaleString()+'.');
- else if(r.json.draft)setMsg('Restored your saved draft of '+fn+' — publish when ready.');
+ if(r.json.publishAt)setMsg('Restored your saved draft of '+fn+' (scheduled to go live '+new Date(r.json.publishAt).toLocaleString()+').');
+ else if(r.json.draft)setMsg('Restored your saved draft of '+fn+'. Publish when ready.');
  /* a freshly loaded draft differs from the published page in the frame, so paint
     it in straight away rather than waiting for the next edit */
  if(files[fn].draft)setTimeout(repaintPreview,0);
@@ -518,11 +543,25 @@ function fromView(fd,el){switch(fd.type){
 
 /* ============ previews + upload ============ */
 const isVid=u=>/\.(mp4|webm|mov)(\?|$)/i.test(u||'')||/video\/upload/.test(u||'');
+/* Drawer thumbs are 52x36 and previews 70px tall, so ask Cloudinary for a
+   320px rendition (a still frame for videos) instead of the original upload,
+   which is up to 4.9MB per photo and 47MB per video in the current sites.
+   Crops and other stored transforms stay in front of the resize. */
+function thumbUrl(v){
+ const o=cloudParts(v);
+ if(!o||o.rtype==='raw')return null;
+ const vid=o.rtype==='video';
+ const id=vid?o.id.replace(/\.[a-z0-9]+$/i,'')+'.jpg':o.id;
+ return cdn(cloudBuild(Object.assign({},o,{id}),o.transforms.concat([(vid?'so_0,':'')+'c_limit,w_320,h_320,f_auto,q_auto'])));
+}
 function previewEl(u){
  if(!u)return null;
- const url=cdn(String(u).trim());
- const el=isVid(url)?document.createElement('video'):document.createElement('img');
- el.src=url;if(el.tagName==='VIDEO'){el.muted=true;el.loop=true;el.autoplay=true;el.playsInline=true;}
+ const t=thumbUrl(u);
+ const url=t||cdn(String(u).trim());
+ const el=(!t&&isVid(url))?document.createElement('video'):document.createElement('img');
+ if(el.tagName==='VIDEO'){el.muted=true;el.preload='metadata';el.playsInline=true;}   /* no autoplaying thumbnails */
+ else{el.loading='lazy';el.decoding='async';}   /* collapsed cards load nothing until opened */
+ el.src=url;
  el.onerror=()=>el.remove();
  return el;
 }
@@ -531,17 +570,30 @@ function renderPrev(box,val,multi){
  const urls=multi?String(val||'').split('\n'):[val];
  urls.map(u=>u&&String(u).trim()).filter(Boolean).slice(0,12).forEach(u=>{const p=previewEl(u);if(p)box.appendChild(p);});
 }
+/* A signature covers {folder, timestamp, transformation} and Cloudinary accepts
+   it for an hour, so reuse one per site + cloud + folder + kind for 30 minutes:
+   a 20-file drop needs one /api/sign-upload call, not 20. The server reads the
+   cloud and folder from the site's own schema, so only the site id is sent. */
+const SIGS={};
+const sigKey=kind=>(curSite?curSite.id:'')+'|'+SITE_CLOUD+'|'+SITE_FOLDER+'|'+kind;
+async function signFor(kind){
+ const k=sigKey(kind),hit=SIGS[k];
+ if(hit&&Date.now()-hit.t<30*60000)return hit.s;
+ const s=await api('/api/sign-upload',{method:'POST',body:JSON.stringify({site:curSite&&curSite.id,kind})});
+ if(s.status!==200)throw new Error(s.json.error||'sign failed');
+ SIGS[k]={t:Date.now(),s};
+ return s;
+}
 async function uploadToCloudinary(file,onmsg){
  /* guard rails: Cloudinary free plan hard caps (10MB image / 100MB video).
     Oversized files fail AFTER a long upload, so refuse them up front. */
  const isv=/^video\//.test(file.type||'')||/\.(mp4|webm|mov)$/i.test(file.name||'');
  const maxMB=isv?100:10;
  if(file.size>maxMB*1024*1024)
-  throw new Error((file.size/1048576).toFixed(1)+'MB — max '+maxMB+'MB for '+(isv?'video':'images')+'. Resize/re-export and try again.');
+  throw new Error((file.size/1048576).toFixed(1)+'MB, the limit is '+maxMB+'MB for '+(isv?'video':'images')+'. Resize or re-export it and try again.');
  onmsg('Signing…');
- /* route the upload to THIS site's cloud + folder, not a hardcoded one */
- const s=await api('/api/sign-upload',{method:'POST',body:JSON.stringify({cloudName:SITE_CLOUD,folder:SITE_FOLDER,kind:isv?'video':'image'})});
- if(s.status!==200)throw new Error(s.json.error||'sign failed');
+ const kind=isv?'video':'image';
+ const s=await signFor(kind);
  const fd=new FormData();
  fd.append('file',file);fd.append('api_key',s.json.apiKey);
  fd.append('timestamp',s.json.timestamp);fd.append('signature',s.json.signature);
@@ -550,7 +602,7 @@ async function uploadToCloudinary(file,onmsg){
  onmsg('Uploading…');
  const r=await fetch('https://api.cloudinary.com/v1_1/'+s.json.cloudName+'/auto/upload',{method:'POST',body:fd});
  const j=await r.json();
- if(j.error)throw new Error(j.error.message||'upload failed');
+ if(j.error){delete SIGS[sigKey(kind)];throw new Error(j.error.message||'upload failed');}   /* re-sign next time */
  return 'CDN:'+j.resource_type+'/upload/v'+j.version+'/'+j.public_id+(j.resource_type==='raw'?'':'.'+j.format);
 }
 function makeUploadBtn(onUrl){
@@ -585,17 +637,27 @@ const hasFiles=e=>{const t=e.dataTransfer&&e.dataTransfer.types;return !!t&&[].i
 
 /* ============ image crop (Cloudinary c_crop) ============ */
 function cloudParts(v){
- let str=stripFp(String(v||'').trim());if(!str)return null;
+ let str=normCdn(stripFp(v));if(!str)return null;
  let m=str.match(/^CDN:(image|video|raw)\/upload\/(.*)$/),cdnForm=false,head='',rtype='',rest='';
  if(m){cdnForm=true;rtype=m[1];rest=m[2];}
  else{m=str.match(/^(https?:\/\/res\.cloudinary\.com\/[^/]+\/)(image|video|raw)\/upload\/(.*)$/);if(!m)return null;head=m[1];rtype=m[2];rest=m[3];}
  const parts=rest.split('/');let vi=parts.findIndex(x=>/^v\d+$/.test(x)),transforms,version,id;
  if(vi>=0){transforms=parts.slice(0,vi);version=parts[vi];id=parts.slice(vi+1).join('/');}
- else{transforms=parts.slice(0,-1);version=null;id=parts[parts.length-1];}
+ else{let k=0;while(k<parts.length-1&&isTx(parts[k]))k++;transforms=parts.slice(0,k);version=null;id=parts.slice(k).join('/');}
  return {cdnForm,head,rtype,transforms,version,id};
 }
+/* an unversioned URL has no v123 marker, so a segment is a transformation only
+   if every comma part is <param>_<value>; folders (gcwindsor/, proguild/team/)
+   used to be read as transformations and dropped from the id */
+const TXP=/^(?:\$\w+|a|ac|af|ar|b|bo|br|c|co|cs|d|dl|dn|dpr|du|e|eo|f|fl|fn|fps|g|h|if|ki|l|o|p|pg|q|r|so|sp|t|u|vc|vs|w|x|y|z)_/;
+function isTx(seg){return seg.split(',').every(c=>TXP.test(c));}
 function cloudBuild(o,transforms){
- const segs=[...(transforms||[]),...(o.version?[o.version]:[]),o.id];
+ /* with transforms in front, an unversioned id gets the v1 placeholder so the
+    sites' build.js can tell stored transforms (crop) from the public id and
+    keep them first in the chain */
+ const t=transforms||[];
+ const ver=o.version||(t.length?'v1':null);
+ const segs=[...t,...(ver?[ver]:[]),o.id];
  return (o.cdnForm?('CDN:'+o.rtype+'/upload/'):(o.head+o.rtype+'/upload/'))+segs.join('/');
 }
 function makeCropBtn(getVal,setVal){
@@ -665,17 +727,19 @@ async function openMediaLibrary(onPick,opts={}){
  let cursor=null,total=0;
  async function page(){
   more.style.display='none';
-  const r=await api('/api/sign-upload?list=1&site='+encodeURIComponent(curSite.id)+(cursor?'&cursor='+encodeURIComponent(cursor):''));
+  let r;
+  try{r=await api('/api/sign-upload?list=1&site='+encodeURIComponent(curSite.id)+(cursor?'&cursor='+encodeURIComponent(cursor):''));}
+  catch(e){info.textContent='Could not load the library (network error).';more.style.display=cursor?'':'none';return;}
   if(r.status!==200){info.textContent=r.json.error||'Could not load the library.';return;}
   (r.json.items||[]).forEach(it=>{
    const c=document.createElement('button');c.type='button';c.className='libcell';c.title=it.id;
    const im=document.createElement('img');im.loading='lazy';im.src=it.thumb;im.onerror=()=>c.remove();c.appendChild(im);
    const sz=document.createElement('span');sz.className='sz';sz.textContent=(it.w&&it.h?it.w+'×'+it.h:'')+(it.bytes?' · '+(it.bytes/1048576).toFixed(1)+'MB':'');c.appendChild(sz);
-   c.onclick=()=>{onPick(it.value,it);if(opts.multi){c.style.outline='2px solid #16a34a';info.textContent='Added ✓ — keep picking, or press Done.';}else close();};
+   c.onclick=()=>{onPick(it.value,it);if(opts.multi){c.style.outline='2px solid #16a34a';info.textContent='Added ✓ Keep picking, or press Done.';}else close();};
    grid.appendChild(c);total++;
   });
   cursor=r.json.cursor;
-  info.textContent=total?(total+' images in this site\u2019s media'+(opts.multi?' — click to add':' — click to use')):'No uploads yet — anything you upload appears here for reuse.';
+  info.textContent=total?(total+' images in this site\u2019s media'+(opts.multi?'. Click to add.':'. Click to use.')):(r.json.note||'No uploads yet. Anything you upload appears here for reuse.');
   more.style.display=cursor?'':'none';
  }
  more.onclick=page;
@@ -689,7 +753,7 @@ function makeLibraryBtn(onUrl){
 
 /* ============ focal point (keeps the important spot centered in crops) ============ */
 function makeFocalBtn(getVal,setVal){
- const b=document.createElement('button');b.type='button';b.className='upbtn';b.textContent='◎ Focal';b.title='Mark the important spot — it stays centered when the image is cropped to fit';
+ const b=document.createElement('button');b.type='button';b.className='upbtn';b.textContent='◎ Focal';b.title='Mark the important spot. It stays centered when the image is cropped to fit.';
  b.onclick=()=>{
   const raw=String(getVal()||'').trim();
   const o=cloudParts(raw);
@@ -706,7 +770,7 @@ function makeFocalBtn(getVal,setVal){
   bar.appendChild(info);
   panel.appendChild(stage);panel.appendChild(bar);ov.appendChild(panel);document.body.appendChild(ov);
   let pt=cur?{x:cur.x,y:cur.y}:null;
-  const paint=()=>{if(!pt){dot.style.display='none';return;}dot.style.display='';dot.style.left=(pt.x/100*im.clientWidth)+'px';dot.style.top=(pt.y/100*im.clientHeight)+'px';info.textContent='Focal point at '+Math.round(pt.x)+'%, '+Math.round(pt.y)+'% — Save to keep it.';};
+  const paint=()=>{if(!pt){dot.style.display='none';return;}dot.style.display='';dot.style.left=(pt.x/100*im.clientWidth)+'px';dot.style.top=(pt.y/100*im.clientHeight)+'px';info.textContent='Focal point at '+Math.round(pt.x)+'%, '+Math.round(pt.y)+'%. Save to keep it.';};
   if(im.complete)paint();else im.onload=paint;
   stage.addEventListener('click',e=>{const r=im.getBoundingClientRect();pt={x:Math.max(0,Math.min(100,(e.clientX-r.left)/r.width*100)),y:Math.max(0,Math.min(100,(e.clientY-r.top)/r.height*100))};paint();});
   const close=()=>ov.remove();
@@ -731,7 +795,7 @@ function renderField(fd,obj,markDirty,opts={}){
   let dragFrom=null;
   const draw=()=>{
    list.innerHTML='';
-   if(!arr.length){const e=document.createElement('div');e.className='hint';e.textContent='No images yet — add one below.';list.appendChild(e);}
+   if(!arr.length){const e=document.createElement('div');e.className='hint';e.textContent='No images yet. Add one below.';list.appendChild(e);}
    arr.forEach((it,idx)=>{
     const row=document.createElement('div');row.className='galrow';row.dataset.idx=idx;
     const grip=document.createElement('span');grip.className='galgrip';grip.textContent='⠿';grip.title='Drag to reorder';grip.draggable=true;row.appendChild(grip);
@@ -776,7 +840,7 @@ function renderField(fd,obj,markDirty,opts={}){
  /* gentle nudge: empty captions/alt text hurt SEO + screen readers */
  if(fd.k==='alt'||fd.k==='cap'||/caption|alt text/i.test(fd.l||'')){
   const nud=document.createElement('div');nud.className='hint';nud.style.color='#b45309';
-  nud.textContent='Tip: describe this image — captions help Google find the site and let screen readers read it.';
+  nud.textContent='Tip: describe this image. Captions help Google find the site and let screen readers read it.';
   const upNud=()=>{const empty=!String(el.value||'').trim();nud.style.display=empty?'':'none';el.style.boxShadow=empty?'0 0 0 2px #fcd34d66':'';};
   el.addEventListener('input',upNud);setTimeout(upNud,0);
   w.appendChild(el);w.appendChild(nud);
@@ -818,7 +882,7 @@ function renderSidebar(){
   if(child)b.style.paddingLeft='30px';
   const label=child?(s.label.split(' · ').slice(1).join(' · ')||s.label):s.label;
   const fst=files[s.file];
-  b.innerHTML=esc(label)+(fst&&fst.dirty?'<span class="dot">●</span>':(fst&&fst.draft?(fst.publishAt?'<span class="dot" style="color:#38bdf8" title="Scheduled: '+esc(new Date(fst.publishAt).toLocaleString())+'">●</span>':'<span class="dot" style="color:#f59e0b" title="Saved draft — not live yet">●</span>'):''));
+  b.innerHTML=esc(label)+(fst&&fst.dirty?'<span class="dot">●</span>':(fst&&fst.draft?(fst.publishAt?'<span class="dot" style="color:#38bdf8" title="Scheduled: '+esc(new Date(fst.publishAt).toLocaleString())+'">●</span>':'<span class="dot" style="color:#f59e0b" title="Saved draft, not live yet">●</span>'):''));
   b.onclick=()=>openSection(s.id);
   sb.appendChild(b);
  };
@@ -840,18 +904,24 @@ function renderSidebar(){
   }
   mkItem(s,false);
  });
+ updateSaveHint();  /* the "autosave is off" warning follows every edit, not just drawer opens */
  histSchedule();   /* every mutation path ends here — debounced undo snapshot */
 }
 async function openSection(id){
  curId=id;const s=section();
  renderSidebar();
- const h2=$('sec-title');h2.textContent=s.label;
+ const h2=$('sec-title');
+ if(!s){h2.textContent='';$('content').innerHTML='<p class="msg">No sections of this site are shared with your account yet.</p>';return;}
+ h2.textContent=s.label;
  const hb=document.createElement('button');hb.type='button';hb.textContent='⟲ History';
  hb.style.cssText='margin-left:14px;vertical-align:middle;padding:5px 11px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;font:500 11.5px system-ui;color:#475569';
- hb.title='Every published version of this section — restore any of them';
+ hb.title='Every published version of this section. Restore any of them.';
  hb.onclick=()=>showHistory(s.file);h2.appendChild(hb);
  $('content').innerHTML='<p class="msg">Loading…</p>';
- try{await ensureFile(s.file);for(const b of (s.blocks||[])){if(b.file&&b.file!==s.file)await ensureFile(b.file);}}catch(e){$('content').innerHTML='<p class="msg err">Load failed: '+esc(e.message)+'</p>';return;}
+ /* the section's files load side by side, not one after another */
+ try{await Promise.all([...new Set([s.file,...(s.blocks||[]).map(b=>b.file)].filter(Boolean))].map(ensureFile));}
+ catch(e){if(curId===id)$('content').innerHTML='<p class="msg err">Load failed: '+esc(e.message)+'</p>';return;}
+ if(curId!==id)return;   /* another section was opened while this one loaded */
  renderBlocks();
  repaintPreview();
  updateSaveHint();
@@ -860,20 +930,32 @@ function renderBlocks(){
  const s=section();if(!s)return;
  const root=$('content');root.innerHTML='';
  const markDirtyFor=fn=>{if(files[fn])files[fn].dirty=true;renderSidebar();if(fn==='theme.json')postTheme();};
+ /* the value a block edits; a missing object or list is created under an
+    existing parent (a new schema block before its data exists), otherwise null */
+ const at=(content,path,init)=>{
+  if(!path)return content;
+  let v;try{v=resolve(content,path);}catch(e){return null;}
+  if(v==null){try{const p=getParent(content,path);if(Array.isArray(p.obj))return null;   /* never grow a list just by viewing it */
+   if(p.obj[p.key]==null)p.obj[p.key]=init();v=p.obj[p.key];}catch(e){return null;}}
+  return v;
+ };
  s.blocks.forEach(b=>{
   const bf=b.file||s.file;
   const fileState=files[bf];if(!fileState)return;
   const markDirty=()=>markDirtyFor(bf);
   const blk=document.createElement('div');blk.className='block';
   const bt=document.createElement('div');bt.className='bt';bt.textContent=b.bt;blk.appendChild(bt);
+  const noData=()=>{const p=document.createElement('p');p.className='msg';p.textContent='Nothing is stored at "'+b.path+'" in '+bf+' yet.';blk.appendChild(p);root.appendChild(blk);};
   if(b.kind==='obj'){
-   const obj=b.path?resolve(fileState.content,b.path):fileState.content;
+   const obj=at(fileState.content,b.path,()=>({}));
+   if(!obj||typeof obj!=='object'){noData();return;}
    const card=document.createElement('div');card.className='card objcard';
    b.fields.forEach(fd=>card.appendChild(renderField(fd,obj,markDirty,{onChange:(fdef,val)=>{
     if(typeof val==='string'&&bf!=='theme.json')vApply(bf+'#'+(b.path?b.path+'.':'')+fdef.k,val);}})));
    blk.appendChild(card);
   } else if(b.kind==='order'){
-   const arr=resolve(fileState.content,b.path);
+   const arr=at(fileState.content,b.path,()=>[]);
+   if(!Array.isArray(arr)){noData();return;}
    const card=document.createElement('div');card.className='card objcard';
    let dragFrom=null;
    const draw=()=>{card.innerHTML='';arr.forEach((name,idx)=>{
@@ -893,8 +975,23 @@ function renderBlocks(){
     row.addEventListener('drop',e=>{e.preventDefault();row.style.boxShadow='';if(dragFrom===null||dragFrom===idx)return;const r=row.getBoundingClientRect();let to=idx+((e.clientY>r.top+r.height/2)?1:0);const it=arr.splice(dragFrom,1)[0];if(dragFrom<to)to--;arr.splice(to,0,it);markDirty();draw();});
     card.appendChild(row);});};
    draw();blk.appendChild(card);
+  } else if(b.kind==='lines'){
+   /* a plain list of strings, one entry per line (Inca plans, Salee paragraphs).
+      Unhandled, it fell into the arr branch and threw on b.fields. */
+   if(!Array.isArray(at(fileState.content,b.path,()=>[]))){noData();return;}
+   const par=getParent(fileState.content,b.path);
+   const card=document.createElement('div');card.className='card objcard';
+   card.appendChild(renderField(f(par.key,'One per line',T.LINES,{hint:b.hint}),par.obj,markDirty));
+   blk.appendChild(card);
   } else {
-   const arr=resolve(fileState.content,b.path);
+   const arr=at(fileState.content,b.path,()=>[]);
+   if(!Array.isArray(arr)){noData();return;}
+   /* lists of plain strings (GC Windsor's story paragraphs: one field, k:'')
+      are edited through a stand-in object whose field reads and writes arr[idx] */
+   const primKey=(b.fields.length===1)?b.fields[0].k:'';
+   const isObj=x=>x!==null&&typeof x==='object';
+   const viewOf=idx=>isObj(arr[idx])?arr[idx]:Object.defineProperty({},primKey,{enumerable:true,get:()=>arr[idx],set:v=>{arr[idx]=v;}});
+   const titleOf=idx=>{const it=arr[idx];return isObj(it)?((b.title&&b.title(it))||'(untitled)'):(String(it==null?'':it).slice(0,80)||'(empty)');};
    const bar=document.createElement('div');bar.className='toolbar';
    const add=document.createElement('button');add.textContent='+ Add item';
    const search=document.createElement('input');search.type='text';search.placeholder='Search…';
@@ -905,14 +1002,17 @@ function renderBlocks(){
    const mediaKey=b.thumbField||((b.fields.find(fd=>fd.type==='media')||{}).k)||null;
    if(mediaKey){const lib=document.createElement('button');lib.textContent='▤ Library';lib.title='Add images already uploaded to this site';bar.insertBefore(lib,search);
     lib.onclick=()=>openMediaLibrary(v=>{const o=blank();o[mediaKey]=v;arr.unshift(o);openIdx=-1;markDirty();draw();vItemAdd(bf,b.path,v,o);},{multi:true});}
-   const blank=()=>{const o={};b.fields.forEach(fd=>{o[fd.k]=fd.type===T.BOOL?false:(fd.type===T.LINES||fd.type===T.MEDLINES||fd.type===T.REELS?[]:(fd.type===T.SEL?(fd.opts||[''])[0]:''));});return o;};
+   const blank=()=>{
+    if((b.fields.length===1&&primKey==='')||(arr.length&&!arr.some(isObj)))return '';   /* a list of strings gets a string */
+    const o={};b.fields.forEach(fd=>{o[fd.k]=fd.type===T.BOOL?false:(fd.type===T.LINES||fd.type===T.MEDLINES||fd.type===T.REELS?[]:(fd.type===T.SEL?(fd.opts||[''])[0]:''));});return o;};
    let openIdx=-1;
    let dragFrom=null;
    const draw=()=>{
     listEl.innerHTML='';const q=search.value.toLowerCase();
     count.textContent=arr.length+' items';
-    arr.forEach((item,idx)=>{
-     const t=(b.title&&b.title(item))||'(untitled)';
+    arr.forEach((item0,idx)=>{
+     const item=viewOf(idx),prim=!isObj(item0);
+     const t=titleOf(idx);
      if(q&&!String(t).toLowerCase().includes(q))return;
      const card=document.createElement('div');card.className='card';
      const headEl=document.createElement('div');headEl.className='card-head';headEl.draggable=true;
@@ -927,7 +1027,7 @@ function renderBlocks(){
      const mk=(txt,fn,cls)=>{const x=document.createElement('button');x.textContent=txt;if(cls)x.className=cls;x.onclick=e=>{e.stopPropagation();fn();};btns.appendChild(x);};
      mk('↑',()=>{if(idx>0){[arr[idx-1],arr[idx]]=[arr[idx],arr[idx-1]];markDirty();draw();}});
      mk('↓',()=>{if(idx<arr.length-1){[arr[idx+1],arr[idx]]=[arr[idx],arr[idx+1]];markDirty();draw();}});
-     mk('Duplicate',()=>{arr.splice(idx+1,0,JSON.parse(JSON.stringify(item)));markDirty();draw();});
+     mk('Duplicate',()=>{arr.splice(idx+1,0,JSON.parse(JSON.stringify(arr[idx])));markDirty();draw();});
      if(canDo('canDelete'))mk('Delete',()=>{if(confirm('Delete "'+t+'"?')){arr.splice(idx,1);vItemRemove(bf,b.path,idx);markDirty();draw();}},'danger');
      headEl.appendChild(btns);
      headEl.onclick=e=>{if(e.target.tagName==='BUTTON')return;card.classList.toggle('open');};
@@ -937,10 +1037,11 @@ function renderBlocks(){
      card.addEventListener('dragleave',()=>{card.style.boxShadow='';});
      card.addEventListener('drop',e=>{if(dragFrom===null&&hasFiles(e)&&mediaKey){e.preventDefault();e.stopPropagation();card.style.boxShadow='';uploadFilesSeq(e.dataTransfer.files,url=>{item[mediaKey]=url;vItemMedia(bf,b.path,idx,url);},t=>{count.textContent=t;}).then(n=>{if(n){markDirty();draw();}});return;}e.preventDefault();card.style.boxShadow='';if(dragFrom===null||dragFrom===idx)return;const r=card.getBoundingClientRect();let to=idx+((e.clientY>r.top+r.height/2)?1:0);const it=arr.splice(dragFrom,1)[0];if(dragFrom<to)to--;arr.splice(to,0,it);markDirty();draw();});
      const body=document.createElement('div');body.className='card-body';
-     b.fields.forEach(fd=>body.appendChild(renderField(fd,item,markDirty,{onChange:(fdef,val)=>{
-      if(mediaKey&&fdef.k===mediaKey){renderTh();if(typeof val==='string')vItemMedia(bf,b.path,idx,val);}
+     (prim?b.fields.slice(0,1):b.fields).forEach(fd=>body.appendChild(renderField(fd,item,markDirty,{onChange:(fdef,val)=>{
+      if(prim){if(typeof val==='string')vApply(bf+'#'+b.path+'.'+idx,val);}   /* stamped data-edit="file#path.N" */
+      else if(mediaKey&&fdef.k===mediaKey){renderTh();if(typeof val==='string')vItemMedia(bf,b.path,idx,val);}
       else vItemField(bf,b.path,idx,fdef.k,val);
-      span.textContent=(b.title&&b.title(item))||'(untitled)';}})));
+      span.textContent=titleOf(idx);}})));
      if(idx===openIdx)card.classList.add('open');
      card.appendChild(headEl);card.appendChild(body);listEl.appendChild(card);
     });
@@ -949,7 +1050,7 @@ function renderBlocks(){
    search.addEventListener('input',draw);
    draw();
    if(mediaKey){
-    const dropHint=document.createElement('div');dropHint.className='hint';dropHint.style.margin='6px 0 8px';dropHint.textContent='Tip: drag & drop image files anywhere on this list to add them at the top \u2014 or drop onto an item to replace its image.';blk.insertBefore(dropHint,listEl);
+    const dropHint=document.createElement('div');dropHint.className='hint';dropHint.style.margin='6px 0 8px';dropHint.textContent='Tip: drag & drop image files anywhere on this list to add them at the top, or drop onto an item to replace its image.';blk.insertBefore(dropHint,listEl);
     ['dragover','dragleave'].forEach(ev=>blk.addEventListener(ev,e=>{if(!hasFiles(e))return;e.preventDefault();blk.classList.toggle('dropzone-on',ev==='dragover');}));
     blk.addEventListener('drop',e=>{if(!hasFiles(e))return;e.preventDefault();blk.classList.remove('dropzone-on');uploadFilesSeq(e.dataTransfer.files,url=>{const o=blank();o[mediaKey]=url;arr.unshift(o);openIdx=-1;markDirty();draw();},t=>{count.textContent=t;});});
    }
@@ -1000,11 +1101,14 @@ function repaintPreview(){
    if(!obj)return;
    (b.fields||[]).forEach(fd=>{const v=obj[fd.k];
     if(typeof v==='string'){vApply(fn+'#'+(b.path?b.path+'.':'')+fd.k,v,true);sent++;}});
-  }else if(b.kind==='arr'){
+  }else if(b.kind==='arr'||b.kind==='lines'){
    const arr=resolve(st.content,b.path);
    if(!Array.isArray(arr))return;
-   arr.forEach((it,i)=>(b.fields||[]).forEach(fd=>{const v=it&&it[fd.k];
-    if(typeof v==='string'){vApply(fn+'#'+b.path+'.'+i+'.'+fd.k,v,true);sent++;}}));
+   arr.forEach((it,i)=>{
+    if(typeof it==='string'){vApply(fn+'#'+b.path+'.'+i,it,true);sent++;return;}   /* list of plain strings */
+    (b.fields||[]).forEach(fd=>{const v=it&&it[fd.k];
+     if(typeof v==='string'){vApply(fn+'#'+b.path+'.'+i+'.'+fd.k,v,true);sent++;}});
+   });
   }
  });});
  postTheme();
@@ -1034,14 +1138,20 @@ const vItemField=(fn,arrPath,idx,k2,val)=>{if(vframe().contentWindow)vframe().co
 const cbTok=()=>'_cb='+Date.now().toString(36);
 const CB_SESSION=cbTok();                        // stable per admin session, for picker thumbnails
 const cbUrl=u=>u+(u.indexOf('?')>=0?'&':'?')+CB_SESSION;
+/* every managed site uses cleanUrls, so foo.html answers 308 -> /foo; ask for
+   /foo directly (index.html -> the folder itself) */
+const pagePath=()=>($('vpage').value||'').replace(/(^|\/)index\.html$/,'$1').replace(/\.html$/,'');
+const siteBase=()=>(curSite&&curSite.liveUrl?curSite.liveUrl:'').replace(/\/$/,'');
 function loadFrame(){
- const base=(curSite&&curSite.liveUrl?curSite.liveUrl:'').replace(/\/$/,'');
- vframe().src=(base?base+'/':'')+$('vpage').value+'?edit=1&'+cbTok();
+ const base=siteBase();
+ /* without a live URL the relative src would load this editor inside itself */
+ vframe().src=base?(base+'/'+pagePath()+'?edit=1&'+cbTok()):'about:blank';
+ if(!base)setMsg('This site has no live URL in the registry, so there is no preview. Add one with Edit on the site picker.','err');
  vframe().onload=()=>postTheme();
  closeSel();
 }
 /* selection panel */
-function closeSel(){$('selpanel').classList.remove('open');}
+function closeSel(){SELGEN++;$('selpanel').classList.remove('open');}
 function styleControls(editKey){
  var store=(files['styles.json']&&files['styles.json'].content)||{};
  var cur=store[editKey]?JSON.parse(JSON.stringify(store[editKey])):{};
@@ -1080,58 +1190,88 @@ function styleControls(editKey){
  wrap.appendChild(arow);paintC();paintA();
  return wrap;
 }
+/* Each click on the page starts a new panel; an older one still waiting for its
+   file must not append its fields to the newer panel. closeSel()/site changes bump it too. */
+let SELGEN=0;
 async function showSelection(d){
+ const gen=++SELGEN;
  const body=$('selbody');body.innerHTML='';
+ const live=()=>gen===SELGEN;
  try{
   if(d.item){
    const parts=d.item.split('#'),fn=parts[0],arrPath=parts[1],idx=+parts[2];
-   const st=await ensureFile(fn);
-   const arr=resolve(st.content,arrPath),item=arr&&arr[idx];
-   if(!item){body.innerHTML='<p class="msg err">This item is not in your current draft — it was added or removed since the page was last published. Click SAVE &amp; PUBLISH, wait for the countdown, and the page will match again.</p>';$('selpanel').classList.add('open');return;}
+   const st=await ensureFile(fn);if(!live())return;
+   const arr=resolve(st.content,arrPath);let item=Array.isArray(arr)?arr[idx]:undefined;
+   if(item==null){body.innerHTML='<p class="msg err">This item is not in your current draft: it was added or removed since the page was last published. Publish, wait for the countdown, and the page will match again.</p>';$('selpanel').classList.add('open');return;}
    let bd=null;SECTIONS.forEach(s=>{(s.blocks||[]).forEach(b=>{if(b.kind==='arr'&&(b.file||s.file)===fn&&b.path===arrPath)bd=b;});});
-   $('seltitle').textContent=(bd&&bd.title&&bd.title(item))||(arrPath+' · '+(idx+1));
-   const fields=bd?bd.fields:Object.keys(item).filter(k=>typeof item[k]!=='object').map(k=>f(k,k));
+   const prim=typeof item!=='object';
+   if(prim)item=Object.defineProperty({},'',{enumerable:true,get:()=>arr[idx],set:v=>{arr[idx]=v;}});   /* a list of plain strings */
+   $('seltitle').textContent=(!prim&&bd&&bd.title&&bd.title(item))||(arrPath+' · '+(idx+1));
+   const fields=prim?[f('','Text',T.AREA)]:(bd?bd.fields:Object.keys(item).filter(k=>typeof item[k]!=='object').map(k=>f(k,k)));
    const md=()=>{st.dirty=true;renderSidebar();};
    fields.forEach(fd=>body.appendChild(renderField(fd,item,md,{onChange:(fdef,val)=>{
+    if(prim){if(typeof val==='string')vApply(fn+'#'+arrPath+'.'+idx,val);return;}
     if(fdef.type===T.MEDIA&&typeof val==='string'){vItemMedia(fn,arrPath,idx,val);return;}
     if(typeof val==='string')vApply(fn+'#'+arrPath+'.'+idx+'.'+fdef.k,val);
     vItemField(fn,arrPath,idx,fdef.k,val);   /* tile size, captions etc. update live */
    }})));
-   const note=document.createElement('p');note.className='msg';note.style.marginTop='10px';note.textContent='Text, image and layout changes preview live. Save keeps them in the editor; Publish makes them live (~1 min rebuild).';body.appendChild(note);
+   const note=document.createElement('p');note.className='msg';note.style.marginTop='10px';note.textContent='Text, image and layout changes preview live. Save keeps them in the editor; Publish makes them live (about a 1 minute rebuild).';body.appendChild(note);
   } else if(d.edit&&d.media){
    /* a stamped IMAGE (data-edit-media) — show a media field, not a text editor */
    const parts=d.edit.split('#'),fn=parts[0],p=parts[1];
-   const st=await ensureFile(fn);
+   const st=await ensureFile(fn);if(!live())return;
    const pk=getParent(st.content,p);
    $('seltitle').textContent=p.split('.').slice(-2).join(' · ');
    const fd=f(pk.key,'Image',T.MEDIA);
    const md=()=>{st.dirty=true;renderSidebar();};
    body.appendChild(renderField(fd,pk.obj,md,{onChange:(fdef,val)=>{if(typeof val==='string')vMediaApply(d.edit,val);}}));
-   const tip=document.createElement('p');tip.className='msg';tip.style.marginTop='10px';tip.textContent='Upload or paste a new image — the page preview updates instantly. Save keeps it in the editor; Publish makes it live.';body.appendChild(tip);
+   const tip=document.createElement('p');tip.className='msg';tip.style.marginTop='10px';tip.textContent='Upload or paste a new image. The page preview updates instantly. Save keeps it in the editor; Publish makes it live.';body.appendChild(tip);
   } else if(d.edit){
    const parts=d.edit.split('#'),fn=parts[0],p=parts[1];
-   const st=await ensureFile(fn);
+   const st=await ensureFile(fn);if(!live())return;
    const pk=getParent(st.content,p);
    $('seltitle').textContent=p.split('.').slice(-2).join(' · ');
    const fd=f(pk.key,'Text',String(pk.obj[pk.key]||'').length>70?T.AREA:T.TEXT);
    const md=()=>{st.dirty=true;renderSidebar();};
-   body.appendChild(renderField(fd,pk.obj,md,{onChange:(fdef,val)=>vApply(d.edit,val)}));
+   const fw=renderField(fd,pk.obj,md,{onChange:(fdef,val)=>vApply(d.edit,val)});
+   /* typing on the page updates this field too (see the 'text' handler), so a
+      later keystroke here cannot write back a stale copy */
+   const inp=fw.querySelector('input,textarea');if(inp)inp.dataset.editKey=d.edit;
+   body.appendChild(fw);
    if(siteHasFile('styles.json')){ /* color/align styling only where the site can store + render it */
     try{await ensureFile('styles.json');}catch(e){}
     try{await ensureFile('theme.json');}catch(e){}
+    if(!live())return;
     if(!files['styles.json']){files['styles.json']={content:{},sha:null,dirty:false};histFold('styles.json');}
     body.appendChild(styleControls(d.edit));
    }
    const tip=document.createElement('p');tip.className='msg';tip.textContent='Tip: you can also type directly on the page.';body.appendChild(tip);
   }
   $('selpanel').classList.add('open');
- }catch(err){body.innerHTML='<p class="msg err">'+esc(err.message||err)+'</p>';$('selpanel').classList.add('open');}
+ }catch(err){if(!live())return;body.innerHTML='<p class="msg err">'+esc(err.message||err)+'</p>';$('selpanel').classList.add('open');}
 }
+/* Only the editor frame speaks the bridge protocol. Every other window that can
+   reach this one (third-party embeds nested in a client page, the picker's
+   preview cards, Google sign-in) is ignored, so none of them can edit a file.
+   Google's own button talks to its own listener and never sends {jrd:...}. */
 window.addEventListener('message',async e=>{
+ const fw=vframe()&&vframe().contentWindow;
+ if(!fw||e.source!==fw)return;
  const d=e.data||{};if(!d.jrd)return;
  if(d.jrd==='text'&&d.edit){
-  const parts=d.edit.split('#');
-  try{const st=await ensureFile(parts[0]);setPath(st.content,parts[1],d.value);st.dirty=true;renderSidebar();}catch(err){}
+  const parts=String(d.edit).split('#'),fn=parts[0];
+  if(!siteHasFile(fn))return;
+  const fresh=!files[fn];
+  try{
+   const st=await ensureFile(fn);
+   /* The page showed the PUBLISHED words while this file's saved draft was
+      still loading, so this keystroke was typed into stale text. Writing it
+      would overwrite the draft; paint the draft instead and let them retype. */
+   if(fresh&&st.draft){repaintPreview();setMsg('Your saved draft of '+fn+' just loaded onto the page. Check the text and type again.','err');return;}
+   setPath(st.content,parts[1],d.value);st.dirty=true;renderSidebar();
+   const pf=$('selbody').querySelector('[data-edit-key="'+CSS.escape(String(d.edit))+'"]');
+   if(pf&&document.activeElement!==pf)pf.value=d.value;
+  }catch(err){setMsg('That edit could not be kept: '+(err.message||err),'err');}
  }
  if(d.jrd==='ready')repaintPreview();
  if(d.jrd==='select')showSelection(d);
@@ -1164,13 +1304,13 @@ async function handleBridgeDrop(d){
   }).filter(Boolean);
   if(!files.length)return;
   if(d.item){
-   if(!arr[idx]){setMsg('Item not found — it was added since the last publish. Publish first.','err');return;}
+   if(!arr[idx]){setMsg('Item not found: it was added since the last publish. Publish first.','err');return;}
    const n=await uploadFilesSeq(files.slice(0,1),url=>{arr[idx][mediaKey]=url;vItemMedia(fn,arrPath,idx,url);},t=>setMsg(t));
-   if(n){st.dirty=true;renderSidebar();setMsg('✓ Image replaced — Save to keep it, Publish to make it live.','ok');}
+   if(n){st.dirty=true;renderSidebar();setMsg('✓ Image replaced. Save to keep it, Publish to make it live.','ok');}
   }else{
    const blank={};if(bd.fields)bd.fields.forEach(fd=>{blank[fd.k]=fd.type==='bool'?false:(fd.type===T.SEL?(fd.opts||[''])[0]:'');});
    const n=await uploadFilesSeq(files,url=>{const o=JSON.parse(JSON.stringify(blank));o[mediaKey]=url;arr.unshift(o);vItemAdd(fn,arrPath,url,o);},t=>setMsg(t));
-   if(n){st.dirty=true;renderSidebar();setMsg('✓ '+n+(n>1?' images':' image')+' added — Save to keep them, Publish to make them live.','ok');}
+   if(n){st.dirty=true;renderSidebar();setMsg('✓ '+n+(n>1?' images':' image')+' added. Save to keep them, Publish to make them live.','ok');}
   }
  }catch(err){setMsg(String(err.message||err),'err');}
 }
@@ -1183,7 +1323,7 @@ async function handleBridgeMove(d){
   if(!Array.isArray(arr)||from===to||from<0||from>=arr.length||to<0||to>=arr.length)return;
   const it=arr.splice(from,1)[0];arr.splice(to,0,it);
   st.dirty=true;renderSidebar();
-  setMsg('✓ Order updated — Save to keep it, Publish to make it live.','ok');
+  setMsg('✓ Order updated. Save to keep it, Publish to make it live.','ok');
  }catch(err){setMsg(String(err.message||err),'err');}
 }
 async function showMapState(d){
@@ -1330,55 +1470,102 @@ const saveable=([fn,st])=>siteHasFile(fn); /* skip files this site's registry do
    goes live, no rebuild, and the editor restores it next visit (load prefers
    drafts). Publish commits to the site repo and clears the drafts. Users
    without publish rights only get Save — their drafts ARE the review queue. */
+/* dirty files the registry does not list can never be saved: say so instead of
+   reporting "Nothing new to save" while the sidebar still shows unsaved dots */
+const unsaveable=()=>Object.entries(files).filter(([fn,st])=>st.dirty&&!siteHasFile(fn)).map(([fn])=>fn);
+/* Save, Publish, Schedule and the 30 s autosave share one lock. Overlapping,
+   a draft write could land after a publish and leave a phantom draft that
+   shadows the file just published, or an autosave could overwrite a fresh
+   schedule. Each loop is also pinned to the site it started on. */
+let SAVING=false;
+const busyMsg=()=>setMsg('Still saving. Try again in a moment.');
+/* publishAt only matters while it is in the future. Once it has passed, the
+   scheduled publish has fired (or is about to), and resending it would make
+   the next scheduler sweep publish whatever is typed next. */
+const futureAt=st=>{if(st.publishAt&&Date.parse(st.publishAt)>Date.now())return st.publishAt;st.publishAt=null;return null;};
+/* One save request. The content is serialized once up front, and `changed`
+   reports whether the file was edited while the request was in flight, so
+   those keystrokes stay dirty for the next save instead of being marked clean. */
+async function postFile(site,fn,st,extra){
+ const sent=JSON.stringify(st.content);
+ const body=Object.assign({file:fn,content:JSON.parse(sent),sha:st.sha,site:site.id},extra||{});
+ let r;
+ try{r=await api('/api/save',{method:'POST',body:JSON.stringify(body)});}
+ catch(e){return{ok:false,err:'network error, check your connection'};}
+ const changed=JSON.stringify(st.content)!==sent;
+ if(r.status!==200)return{ok:false,status:r.status,err:(r.json&&r.json.error)||('error '+r.status),changed};
+ return{ok:true,json:r.json||{},changed};
+}
 async function saveDraftAll(){
+ if(SAVING){busyMsg();return;}
+ const site=curSite;if(!site)return;
  const dirty=Object.entries(files).filter(([,st])=>st.dirty).filter(saveable);
- if(!dirty.length){setMsg('Nothing new to save.');return;}
- $('saveDraftBtn').disabled=true;
- const fails=[];
- for(const [fn,st] of dirty){
-  setMsg('Saving '+fn+'…');
-  const body={file:fn,content:st.content,sha:st.sha,draft:true,message:'cms: draft '+fn,site:curSite.id};
-  if(st.publishAt)body.publishAt=st.publishAt;   /* keep an existing schedule */
-  const r=await api('/api/save',{method:'POST',body:JSON.stringify(body)});
-  if(r.status!==200){fails.push(fn+' ('+(r.json.error||r.status)+')');continue;}
-  st.dirty=false;st.draft=true;
+ const skipped=unsaveable();
+ if(!dirty.length){
+  if(skipped.length)setMsg('Cannot save '+skipped.join(', ')+': not in this site’s list of editable files.','err');
+  else setMsg('Nothing new to save.');
+  return;
  }
- $('saveDraftBtn').disabled=false;renderSidebar();refreshDrafts();
- if(fails.length)setMsg('Saved with problems — '+fails.join('; '),'err');
+ SAVING=true;$('saveDraftBtn').disabled=true;
+ const fails=[];
+ try{
+  for(const [fn,st] of dirty){
+   if(curSite!==site)break;
+   setMsg('Saving '+fn+'…');
+   const extra={draft:true,message:'cms: draft '+fn};
+   const at=futureAt(st);if(at)extra.publishAt=at;   /* keep a pending schedule */
+   const r=await postFile(site,fn,st,extra);
+   if(!r.ok){fails.push(fn+' ('+r.err+')');continue;}
+   st.dirty=r.changed;st.draft=true;
+  }
+ }finally{SAVING=false;$('saveDraftBtn').disabled=false;}
+ if(curSite!==site)return;
+ renderSidebar();refreshDrafts();
+ if(skipped.length)fails.push(skipped.join(', ')+' (not in this site’s list of editable files)');
+ if(fails.length)setMsg('Saved with problems: '+fails.join('; '),'err');
  else setMsg(canDo('canPublish')
-  ?'Saved ✓ — kept in the editor, not live yet. Publish when you are ready.'
-  :'Saved ✓ — sent for review. Your admin will approve and publish.','ok');
+  ?'Saved ✓ (kept in the editor, not live yet). Publish when you are ready.'
+  :'Saved ✓ and sent for review. Your admin will approve and publish.','ok');
 }
 async function publishAll(){
+ if(SAVING){busyMsg();return;}
+ const site=curSite;if(!site)return;
  const list=Object.entries(files).filter(([,st])=>st.dirty||st.draft).filter(saveable);
  if(!list.length){setMsg('Nothing to publish.');return;}
- if(!confirm('Publish changes to: '+list.map(([fn])=>fn).join(', ')+'?\nThe live site rebuilds automatically (~1 min).'))return;
- $('save').disabled=true;
+ if(!confirm('Publish changes to: '+list.map(([fn])=>fn).join(', ')+'?\nThe live site rebuilds automatically (about 1 minute).'))return;
+ if(SAVING||curSite!==site){busyMsg();return;}   /* an autosave may have started while the dialog was open */
+ SAVING=true;$('save').disabled=true;
  const fails=[];let okCount=0;
- for(const [fn,st] of list){
-  setMsg('Publishing '+fn+'…');
-  const r=await api('/api/save',{method:'POST',body:JSON.stringify({file:fn,content:st.content,sha:st.sha,message:'cms: update '+fn,site:curSite.id})});
-  if(r.status===409){fails.push(fn+' (changed elsewhere — sign out/in to reload it)');continue;}
-  if(r.status!==200){fails.push(fn+' ('+(r.json.error||r.status)+')');continue;}
-  if(r.json.draft){st.dirty=false;st.draft=true;okCount++;continue;} /* server downgraded to draft (no publish rights) */
-  st.sha=r.json.sha;st.dirty=false;st.draft=false;st.publishAt=null;okCount++;
- }
- $('save').disabled=false;renderSidebar();refreshDrafts();
- if(fails.length)setMsg((okCount?'Partly published — problems with: ':'Publish failed — ')+fails.join('; '),'err');
+ try{
+  for(const [fn,st] of list){
+   if(curSite!==site)break;
+   setMsg('Publishing '+fn+'…');
+   const r=await postFile(site,fn,st,{message:'cms: update '+fn});
+   if(!r.ok){fails.push(fn+' ('+(r.status===409?'changed elsewhere since you opened it: press Save, then sign out and back in to reload it':r.err)+')');continue;}
+   okCount++;
+   if(r.json.draft){st.dirty=r.changed;st.draft=true;continue;} /* server downgraded to draft (no publish rights) */
+   st.sha=r.json.sha;st.dirty=r.changed;st.draft=false;st.publishAt=null;
+  }
+ }finally{SAVING=false;$('save').disabled=false;}
+ if(curSite!==site)return;
+ renderSidebar();refreshDrafts();
+ if(fails.length)setMsg((okCount?'Partly published. Problems with: ':'Publish failed: ')+fails.join('; '),'err');
  if(okCount&&!fails.length)startPublishWatch();
- else if(okCount)setTimeout(startPublishWatch,3500);
+ else if(okCount)setTimeout(()=>{if(curSite===site)startPublishWatch();},3500);
 }
 let pubTimer=null;
 function startPublishWatch(){
  if(pubTimer)clearInterval(pubTimer);
+ const site=curSite;
  let left=75;
- setMsg('Saved \u2713 \u2014 publishing to the live site\u2026 ~'+left+'s','ok');
+ setMsg('Saved \u2713 Publishing to the live site\u2026 about '+left+'s','ok');
  pubTimer=setInterval(()=>{
+  if(curSite!==site){clearInterval(pubTimer);pubTimer=null;return;}   /* belongs to the site it started on */
   left-=5;
-  if(left>0){setMsg('Saved \u2713 \u2014 publishing to the live site\u2026 ~'+left+'s','ok');return;}
+  if(left>0){setMsg('Saved \u2713 Publishing to the live site\u2026 about '+left+'s','ok');return;}
   clearInterval(pubTimer);pubTimer=null;
   loadFrame();
-  setMsg('Live \u2713 \u2014 preview reloaded with your published changes.','ok');
+  setMsg('Live \u2713 The preview reloaded with your published changes.','ok');
  },5000);
 }
 
@@ -1393,10 +1580,13 @@ async function showHistory(fn){
  bar.appendChild(info);bar.appendChild(cls);
  panel.appendChild(list);panel.appendChild(bar);ov.appendChild(panel);document.body.appendChild(ov);
  const close=()=>ov.remove();cls.onclick=close;ov.addEventListener('mousedown',e=>{if(e.target===ov)close();});
- const r=await api('/api/load?history=1&site='+encodeURIComponent(curSite.id)+'&file='+encodeURIComponent(fn));
+ const site=curSite;
+ let r;
+ try{r=await api('/api/load?history=1&site='+encodeURIComponent(site.id)+'&file='+encodeURIComponent(fn));}
+ catch(e){info.textContent='Could not load history (network error).';return;}
  if(r.status!==200){info.textContent=r.json.error||'Could not load history.';return;}
  const vs=r.json.versions||[];
- info.textContent=vs.length?'Every published version. Restoring loads it into the editor — nothing goes live until you Publish.':'No published versions yet.';
+ info.textContent=vs.length?'Every published version. Restoring loads it into the editor; nothing goes live until you Publish.':'No published versions yet.';
  vs.forEach((v,i)=>{
   const row=document.createElement('button');row.type='button';
   row.style.cssText='display:flex;gap:10px;align-items:baseline;text-align:left;border:1px solid var(--line);border-radius:9px;background:#fff;padding:9px 12px;cursor:pointer;font:400 12.5px system-ui';
@@ -1405,9 +1595,13 @@ async function showHistory(fn){
   row.onclick=async()=>{
    if(i===0){close();return;}
    if(!confirm('Load the version from '+when+' into the editor?\nYour current edits to this section are replaced (Undo brings them back). Nothing goes live until you Publish.'))return;
-   const r2=await api('/api/load?site='+encodeURIComponent(curSite.id)+'&file='+encodeURIComponent(fn)+'&at='+encodeURIComponent(v.sha));
+   if(curSite!==site){close();return;}
+   let r2;
+   try{r2=await api('/api/load?site='+encodeURIComponent(site.id)+'&file='+encodeURIComponent(fn)+'&at='+encodeURIComponent(v.sha));}
+   catch(e){info.textContent='Could not load that version (network error).';return;}
    if(r2.status!==200){info.textContent=r2.json.error||'Could not load that version.';return;}
    try{await ensureFile(fn);}catch(e){}
+   if(curSite!==site){close();return;}
    if(!files[fn]){info.textContent='Could not open '+fn+'.';return;}
    const before=files[fn].content;
    files[fn].content=r2.json.content;files[fn].dirty=true;
@@ -1422,7 +1616,7 @@ async function showHistory(fn){
 /* ============ scheduled publishing ============ */
 function openSchedule(){
  const list=Object.entries(files).filter(([,st])=>st.dirty||st.draft).filter(saveable);
- if(!list.length){setMsg('Nothing to schedule — make some edits first.');return;}
+ if(!list.length){setMsg('Nothing to schedule. Make some edits first.');return;}
  const ov=document.createElement('div');ov.className='cropov';
  const panel=document.createElement('div');panel.className='croppanel';panel.style.minWidth='min(440px,92vw)';
  const h=document.createElement('div');h.style.cssText='font:700 15px system-ui';h.textContent='Schedule publish';
@@ -1437,61 +1631,102 @@ function openSchedule(){
  panel.appendChild(h);panel.appendChild(p);panel.appendChild(inp);panel.appendChild(bar);ov.appendChild(panel);document.body.appendChild(ov);
  const close=()=>ov.remove();
  const mk=(t,fn2,cls2)=>{const x=document.createElement('button');x.type='button';x.textContent=t;if(cls2)x.className=cls2;x.onclick=fn2;bar.appendChild(x);return x;};
- mk('Clear schedule',async()=>{await schedSave(null);close();});
+ mk('Clear schedule',async()=>{if(await schedSave(null))close();else info.textContent='Not saved yet. Try again in a moment.';});
  mk('Cancel',close);
  mk('Schedule',async()=>{
   const t=new Date(inp.value);
   if(isNaN(t)||t.getTime()<Date.now()-60000){info.textContent='Pick a future time.';return;}
-  await schedSave(t.toISOString());close();
+  if(await schedSave(t.toISOString()))close();else info.textContent='Not scheduled yet. Try again in a moment.';
  },'primary');
  ov.addEventListener('mousedown',e=>{if(e.target===ov)close();});
 }
 async function schedSave(publishAt){
+ if(SAVING){busyMsg();return false;}
+ const site=curSite;if(!site)return false;
  const list=Object.entries(files).filter(([,st])=>st.dirty||st.draft).filter(saveable);
- for(const [fn,st] of list){
-  const body={file:fn,content:st.content,sha:st.sha,draft:true,message:'cms: schedule '+fn,site:curSite.id};
-  if(publishAt)body.publishAt=publishAt;
-  const r=await api('/api/save',{method:'POST',body:JSON.stringify(body)});
-  if(r.status!==200){setMsg('Could not schedule '+fn+': '+(r.json.error||r.status),'err');return;}
-  st.dirty=false;st.draft=true;st.publishAt=publishAt||null;
- }
+ SAVING=true;
+ try{
+  for(const [fn,st] of list){
+   if(curSite!==site)return false;
+   const extra={draft:true,message:'cms: schedule '+fn};
+   if(publishAt)extra.publishAt=publishAt;
+   const r=await postFile(site,fn,st,extra);
+   if(!r.ok){setMsg('Could not schedule '+fn+': '+r.err,'err');return false;}
+   st.dirty=r.changed;st.draft=true;st.publishAt=publishAt||null;
+  }
+ }finally{SAVING=false;}
+ /* ask the scheduler shortly after this time instead of waiting for the next routine check */
+ if(publishAt)POKE_AT=Math.min(POKE_AT,Date.parse(publishAt)+15000);
  renderSidebar();refreshDrafts();
- setMsg(publishAt?('Scheduled ✓ — goes live around '+new Date(publishAt).toLocaleString()+'.'):'Schedule cleared — your changes stay saved in the editor.','ok');
+ setMsg(publishAt?('Scheduled ✓ Goes live around '+new Date(publishAt).toLocaleString()+'.'):'Schedule cleared. Your changes stay saved in the editor.','ok');
+ return true;
 }
 
 /* ============ autosave (silent drafts) + scheduled-publish poke ============ */
-let AUTOSAVING=false,AUTOTICKS=0;
-setInterval(async()=>{
- AUTOTICKS++;
+/* The sweep reads every site's drafts from GitHub, so only ask when something
+   can be due: the server answers with the next scheduled time (`next`), and a
+   30 minute re-check catches schedules set from another browser. An API that
+   does not send `next` gets the old 5 minute rhythm. */
+let POKE_AT=0;
+async function pokeScheduler(force){
  if(!curSite)return;
- /* poke the scheduler every 5 min so scheduled publishes fire near their time */
- if(AUTOTICKS%10===0)fetch('/api/drafts?cron=1',{method:'POST',headers:{'x-admin-key':key()}}).catch(()=>{});
- if(document.hidden||AUTOSAVING||!autosaveOn())return;
+ if(!force&&(document.hidden||Date.now()<POKE_AT))return;
+ const site=curSite;
+ POKE_AT=Date.now()+30*60000;
+ /* our own pending schedules are known without asking */
+ Object.values(files).forEach(st=>{const t=st&&st.publishAt?Date.parse(st.publishAt):NaN;if(t>Date.now())POKE_AT=Math.min(POKE_AT,t+15000);});
+ let j=null;
+ try{
+  const r=await fetch('/api/drafts?cron=1',{method:'POST',headers:{'x-admin-key':key()}});
+  j=await r.json().catch(()=>null);
+  if(!r.ok||!j){POKE_AT=Math.min(POKE_AT,Date.now()+5*60000);return;}
+ }catch(e){POKE_AT=Math.min(POKE_AT,Date.now()+5*60000);return;}
+ if(!('next' in j))POKE_AT=Math.min(POKE_AT,Date.now()+5*60000);
+ else if(j.next){const t=Date.parse(j.next);if(!isNaN(t))POKE_AT=Math.min(POKE_AT,Math.max(t+15000,Date.now()+60000));}
+ /* a schedule of ours just went live: it is no longer a pending draft, and
+    its publishAt must not ride along on the next autosave */
+ if(curSite!==site||!Array.isArray(j.published))return;
+ const mine=j.published.filter(x=>String(x).indexOf(site.id+'/')===0).map(x=>String(x).slice(site.id.length+1)).filter(fn=>files[fn]);
+ if(!mine.length)return;
+ mine.forEach(fn=>{files[fn].publishAt=null;files[fn].draft=false;});
+ renderSidebar();
+ setMsg('Your scheduled changes to '+mine.join(', ')+' just went live.','ok');
+}
+setInterval(async()=>{
+ if(!curSite)return;
+ pokeScheduler();
+ if(document.hidden||SAVING||!autosaveOn())return;
+ const site=curSite;
  const dirty=Object.entries(files).filter(([,st])=>st.dirty).filter(saveable);
  if(!dirty.length)return;
- AUTOSAVING=true;
+ SAVING=true;
+ let ok=0;const bad=[];
  try{
   for(const [fn,st] of dirty){
-   const body={file:fn,content:st.content,sha:st.sha,draft:true,message:'cms: autosave '+fn,site:curSite.id};
-   if(st.publishAt)body.publishAt=st.publishAt;   /* keep an existing schedule */
-   const r=await api('/api/save',{method:'POST',body:JSON.stringify(body)});
-   if(r.status!==200)continue;
-   st.dirty=false;st.draft=true;
+   if(curSite!==site)break;
+   const extra={draft:true,message:'cms: autosave '+fn};
+   const at=futureAt(st);if(at)extra.publishAt=at;   /* keep a pending schedule, never a past one */
+   const r=await postFile(site,fn,st,extra);
+   if(!r.ok){bad.push(fn+' ('+r.err+')');continue;}
+   st.dirty=r.changed;st.draft=true;ok++;
   }
-  renderSidebar();
-  setMsg('Autosaved ✓ — draft kept in the editor.');
- }catch(e){/* next tick retries */}finally{AUTOSAVING=false;}
+ }finally{SAVING=false;}
+ if(curSite!==site)return;
+ renderSidebar();
+ if(bad.length)setMsg('Autosave failed for '+bad.join('; ')+'. Press Save to try again.','err');
+ else if(ok&&!pubTimer)setMsg('Autosaved ✓ Draft kept in the editor.');
 },30000);
 
 /* ============ first-visit tour ============ */
 function startTour(force){
  try{if(!force&&localStorage.getItem('jrd-tour-done'))return;}catch(e){return;}
+ if(document.querySelector('.tourov'))return;   /* never two tours stacked */
  const pub=canDo('canPublish');
  const steps=[
   {sel:'#vframe',title:'Edit right on the page',text:'This is your real site. Click any text to type into it, click any photo to swap it.'},
-  {sel:'#drawerBtn',title:'Manage content',text:'Every section, list and setting lives in here — add, remove and reorder anything.'},
+  {sel:'#drawerBtn',title:'Manage content',text:'Every section, list and setting lives in here. Add, remove and reorder anything.'},
   {sel:'#vframe',title:'Drag & drop photos',text:'Drop image files from your computer onto a photo to replace it, or into a gallery to add them. Drag tiles around to reorder.'},
-  {sel:'#saveDraftBtn',title:'Save, then publish',text:pub?'Save keeps your work in the editor — nothing changes on the live site until you press Publish.':'Save sends your changes for review — your site admin approves and publishes them.'},
+  {sel:'#saveDraftBtn',title:'Save, then publish',text:pub?'Save keeps your work in the editor. Nothing changes on the live site until you press Publish.':'Save sends your changes for review. Your site admin approves and publishes them.'},
  ];
  let i=0;
  const ov=document.createElement('div');ov.className='tourov';
@@ -1522,11 +1757,15 @@ function initApp(){
  sel.onchange=loadFrame;
  $('dev-d').onclick=()=>{$('stage').classList.remove('mobile');$('dev-d').classList.add('on');$('dev-m').classList.remove('on');};
  $('dev-m').onclick=()=>{$('stage').classList.add('mobile');$('dev-m').classList.add('on');$('dev-d').classList.remove('on');};
- $('drawerBtn').onclick=()=>{const open=!$('drawer').classList.contains('open');$('drawer').classList.toggle('open',open);$('scrim').classList.toggle('show',open);if(open)openSection(curId);};
- $('scrim').onclick=()=>{$('drawer').classList.remove('open');$('scrim').classList.remove('show');};
+ /* Closing the drawer re-sends every list item's text by index: a move, add
+    or duplicate in the drawer shifts indexes the page's data-edit stamps still
+    hold, and typing on a stale stamp would write into the wrong item. */
+ const closeDrawer=()=>{$('drawer').classList.remove('open');$('scrim').classList.remove('show');repaintPreview();};
+ $('drawerBtn').onclick=()=>{if($('drawer').classList.contains('open')){closeDrawer();return;}$('drawer').classList.add('open');$('scrim').classList.add('show');openSection(curId);};
+ $('scrim').onclick=closeDrawer;
  $('reloadBtn').onclick=loadFrame;
- $('viewLive').onclick=()=>{const base=(curSite&&curSite.liveUrl?curSite.liveUrl:'').replace(/\/$/,'');const pg=($('vpage').value||'').replace(/index\.html$/,'').replace(/\.html$/,'');window.open((base?base+'/':'/')+pg,'_blank','noopener');};
- $('switchSite').onclick=showPicker;
+ $('viewLive').onclick=()=>{const base=siteBase();if(!base){setMsg('This site has no live URL yet.','err');return;}window.open(base+'/'+pagePath(),'_blank','noopener');};
+ $('switchSite').onclick=()=>showPicker();
  $('selclose').onclick=closeSel;
  $('saveDraftBtn').onclick=saveDraftAll;
  $('save').onclick=publishAll;
@@ -1534,54 +1773,92 @@ function initApp(){
  const pub=canDo('canPublish');
  $('save').style.display=pub?'':'none';
  $('schedBtn').style.display=pub?'':'none';
- $('saveDraftBtn').textContent=pub?'Save':'Save — sends for review';
+ $('saveDraftBtn').textContent=pub?'Save':'Save (sends for review)';
  $('undoBtn').onclick=()=>histRestore(-1);
  $('redoBtn').onclick=()=>histRestore(1);
  $('schedBtn').onclick=openSchedule;
  $('tourBtn').onclick=()=>startTour(true);
  $('moreBtn').onclick=()=>toggleMenu($('moreMenu'),$('moreBtn'));
- $('moreMenu').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&b.id!=='autoBtn')closeMenu();});
+ $('moreMenu').onclick=e=>{const b=e.target.closest('button');if(b&&b.id!=='autoBtn')closeMenu();};   /* assigned, not added: initApp runs on every site open */
  $('autoBtn').onclick=()=>setAutosave(!autosaveOn());
  $('histBtn').onclick=openHistoryMenu;
  renderAutoBtn();updateSaveHint();
  renderSidebar();
  histPush();  /* baseline snapshot for undo */
  loadFrame();
- refreshDrafts();
+ /* the drafts list does two jobs: the admin's Drafts button, and preloading
+    every file that has a saved draft, so the page shows the draft before
+    anyone can click and type over the stale published words */
+ refreshDrafts({preload:true});
  /* fire any due scheduled publishes, then offer the tour to first-timers */
- fetch('/api/drafts?cron=1',{method:'POST',headers:{'x-admin-key':key()}}).catch(()=>{});
+ pokeScheduler(true);
  setTimeout(()=>startTour(false),1500);
 }
-async function refreshDrafts(){
+let DRAFTGEN=0;
+async function refreshDrafts(opts){
  const btn=$('draftsBtn');if(!btn)return;
  const dot=v=>{const mb=$('moreBtn');if(mb)mb.classList.toggle('has-dot',!!v);};
- if(!meIsAdmin()||!curSite){btn.style.display='none';dot(false);return;}
+ const site=curSite,gen=++DRAFTGEN,preload=!!(opts&&opts.preload),admin=meIsAdmin();
+ /* editors get their own drafts from the same GET, used only for the preload */
+ if(!site||(!admin&&!preload)){btn.style.display='none';dot(false);return;}
+ let drafts=null;
  try{
-  const r=await fetch('/api/drafts?site='+encodeURIComponent(curSite.id),{headers:{'x-admin-key':key()}});
+  const r=await fetch('/api/drafts?site='+encodeURIComponent(site.id),{headers:{'x-admin-key':key()}});
   const j=await r.json().catch(()=>({}));
-  const n=(j.drafts||[]).length;
+  if(r.ok)drafts=Array.isArray(j.drafts)?j.drafts:[];
+ }catch(e){/* the button just stays as it was */}
+ if(curSite!==site)return;          /* answered for a site that is no longer open */
+ if(gen===DRAFTGEN){
+  const n=admin&&drafts?drafts.length:0;
   btn.style.display=n?'':'none';dot(n>0);
   btn.textContent='\u{1F552} Drafts ('+n+')';
-  btn.onclick=()=>showDrafts(j.drafts||[]);
- }catch(e){btn.style.display='none';dot(false);}
+  btn.onclick=()=>showDrafts(drafts||[]);
+ }
+ if(preload&&drafts&&drafts.length){
+  const want=[...new Set(drafts.map(d=>d.file))].filter(fn=>siteHasFile(fn)&&!files[fn]);
+  if(want.length){await Promise.all(want.map(fn=>ensureFile(fn).catch(()=>null)));if(curSite===site)repaintPreview();}
+ }
+}
+/* After an approve or reject the editor's copy of that file is stale (a
+   rejected draft would otherwise ride along on the admin's next Publish).
+   Drop it, with anything bound to it, so the next use loads what is live now. */
+function forgetFile(fn){
+ if(!files[fn])return;
+ delete files[fn];
+ HIST.stack.forEach(snap=>{if(snap)delete snap[fn];});   /* histFold re-folds the fresh copy on load */
+ closeSel();
+ if($('drawer').classList.contains('open'))openSection(curId);
+ renderSidebar();
 }
 function showDrafts(drafts){
  const wrap=$('draftlist');wrap.innerHTML='';
  $('draftspanel').style.display='flex';
  if(!drafts.length){wrap.innerHTML='<p class="msg">No pending changes.</p>';return;}
+ const site=curSite;
+ const when=v=>{const t=Date.parse(v||'');return isNaN(t)?'':new Date(t).toLocaleString();};   /* the viewer's local time */
+ /* unsaved edits of your own to the same file are replaced either way */
+ const okToDrop=fn=>{const st=files[fn];return !(st&&st.dirty)||confirm('You have unsaved edits to '+fn+' in the editor. They will be discarded. Continue?');};
  drafts.forEach(d=>{
   const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 6px;border-bottom:.5px solid #1e293b';
-  row.innerHTML='<span style="flex:1;min-width:0"><b>'+esc(d.file)+'</b><br><span style="color:#64748b;font-size:12px">by '+esc((d.author&&(d.author.name||d.author.email))||'editor')+' \u00b7 '+esc((d.savedAt||'').replace('T',' ').slice(0,16))+'</span></span>';
+  row.innerHTML='<span style="flex:1;min-width:0"><b>'+esc(d.file)+'</b><br><span style="color:#64748b;font-size:12px">by '+esc((d.author&&(d.author.name||d.author.email))||'editor')+' \u00b7 '+esc(when(d.savedAt))+(d.publishAt?' \u00b7 scheduled for '+esc(when(d.publishAt)):'')+'</span></span>';
   const mkb=(t,cls,fn)=>{const b=document.createElement('button');b.className=cls;b.style.cssText='font-size:11px;padding:6px 10px';b.textContent=t;b.onclick=fn;row.appendChild(b);};
   mkb('Approve & publish','primary',async()=>{
-   const r=await postJSON('/api/drafts',{action:'approve',site:curSite.id,file:d.file},true);
-   if(r.status===200){$('draftspanel').style.display='none';delete files[d.file];startPublishWatch();refreshDrafts();}
-   else alert(r.json.error||'Failed');
+   if(curSite!==site||!okToDrop(d.file))return;
+   let r;try{r=await postJSON('/api/drafts',{action:'approve',site:site.id,file:d.file},true);}catch(e){alert('Network error. Try again.');return;}
+   if(r.status!==200){alert(r.json.error||'Failed');return;}
+   if(curSite!==site)return;
+   $('draftspanel').style.display='none';forgetFile(d.file);startPublishWatch();refreshDrafts();
   });
   mkb('Reject','ghost',async()=>{
-   if(!confirm('Discard '+d.file+' draft?'))return;
-   const r=await postJSON('/api/drafts',{action:'reject',site:curSite.id,file:d.file},true);
-   if(r.status===200){row.remove();refreshDrafts();}else alert(r.json.error||'Failed');
+   if(!confirm('Discard the '+d.file+' draft?'))return;
+   if(curSite!==site||!okToDrop(d.file))return;
+   let r;try{r=await postJSON('/api/drafts',{action:'reject',site:site.id,file:d.file},true);}catch(e){alert('Network error. Try again.');return;}
+   if(r.status!==200){alert(r.json.error||'Failed');return;}
+   if(curSite!==site)return;
+   row.remove();
+   const had=!!files[d.file];forgetFile(d.file);
+   if(had)loadFrame();   /* the page was showing the rejected draft */
+   refreshDrafts();
   });
   wrap.appendChild(row);
  });
@@ -1645,14 +1922,14 @@ function updateSaveHint(){
  const pending=Object.values(files).some(st=>st&&st.dirty);
  const warn=pending&&!autosaveOn();
  b.classList.toggle('warn',warn);
- b.title=warn?'Autosave is off and you have unsaved changes — press Save to keep them.'
+ b.title=warn?'Autosave is off and you have unsaved changes. Press Save to keep them.'
              :'Store your changes in the editor without touching the live site';
 }
 function setAutosave(on){
  lsSet(PK.autosave,on?'1':'0');
  renderAutoBtn();updateSaveHint();
- setMsg(on?'Autosave on — drafts are kept for you every 30 seconds.'
-          :'Autosave off — your changes are only kept when you press Save.',on?'ok':'');
+ setMsg(on?'Autosave on: drafts are kept for you every 30 seconds.'
+          :'Autosave off: your changes are only kept when you press Save.',on?'ok':'');
 }
 
 /* ---------- which data files back the page in the preview ----------
@@ -1662,12 +1939,13 @@ function setAutosave(on){
    and ask it. Falls back to the site's whole file list if that ever fails. */
 const PAGEFILES={};
 async function pageFiles(){
- const pg=$('vpage').value||'';
- if(PAGEFILES[pg])return PAGEFILES[pg];
- const base=(curSite&&curSite.liveUrl?curSite.liveUrl:'').replace(/\/$/,'');
+ const pg=pagePath(),ck=(curSite?curSite.id:'')+'|'+pg;   /* keyed by site: two sites share page names */
+ if(PAGEFILES[ck])return PAGEFILES[ck];
+ const base=siteBase();
  let out=[];
  try{
-  const r=await fetch((base?base+'/':'')+pg,{cache:'no-store'});
+  if(!base)throw new Error('no live URL');
+  const r=await fetch(base+'/'+pg,{cache:'no-store'});
   if(r.ok){
    const html=await r.text();
    const seen={};
@@ -1679,7 +1957,7 @@ async function pageFiles(){
   }
  }catch(e){/* fall through to the registry list */}
  if(!out.length)out=((curSite&&curSite.files)||[]).slice();
- PAGEFILES[pg]=out;
+ PAGEFILES[ck]=out;
  return out;
 }
 async function openHistoryMenu(){
@@ -1806,7 +2084,7 @@ function scrollEdges(){
 }
 $('sitelist').addEventListener('scroll',scrollEdges,{passive:true});
 window.addEventListener('resize',()=>{scrollEdges();if(!PICK.dense)hydrateThumbs();});
-const pickCards=()=>Array.prototype.slice.call(document.querySelectorAll('#sitelist .sitecard:not(.sitecard-add)'));
+const pickCards=()=>Array.prototype.slice.call(document.querySelectorAll('#sitelist .sitecard:not(.sitecard-add)')).filter(c=>c.style.display!=='none');
 function pickMove(step){
  if(!PICK.rows.length)return;
  PICK.kb=Math.max(0,Math.min(PICK.rows.length-1,(PICK.kb<0?(step>0?-1:0):PICK.kb)+step));
@@ -1819,12 +2097,36 @@ function fillGroups(){
  dl.innerHTML='';const seen={};
  SITES.forEach(s=>{const g=String(s.group||'').trim();if(g&&!seen[g]){seen[g]=1;const o=document.createElement('option');o.value=g;dl.appendChild(o);}});
 }
-$('site-q').addEventListener('input',e=>{PICK.q=e.target.value;renderPicker();});
+$('site-q').addEventListener('input',e=>{PICK.q=e.target.value;if(!filterPicker())renderPicker();});
+/* Searching only hides and shows the cards already built, so the live preview
+   frames are not destroyed and reloaded on every keystroke. Falls back to a
+   full render when cards are missing (e.g. after a "nothing matches" render). */
+function filterPicker(){
+ const wrap=$('sitelist');
+ const cards=[].filter.call(wrap.children,el=>el.dataset&&el.dataset.site);
+ if(cards.length!==SITES.length)return false;
+ const terms=PICK.q.toLowerCase().split(/\s+/).filter(Boolean);
+ const hitIds=new Set(SITES.filter(s=>siteMatches(s,terms)).map(s=>s.id));
+ if(!hitIds.size)return false;
+ PICK.rows=[];let head=null,n=0;
+ const closeHead=()=>{if(head)head.style.display=n?'':'none';};
+ [].forEach.call(wrap.children,el=>{
+  if(el.classList.contains('sc-group')){closeHead();head=el;n=0;return;}
+  if(!(el.dataset&&el.dataset.site))return;
+  const hit=hitIds.has(el.dataset.site);el.style.display=hit?'':'none';
+  if(hit){PICK.rows.push(SITES.find(s=>s.id===el.dataset.site));n++;}
+ });
+ closeHead();
+ const c=$('site-count');
+ if(c)c.textContent=terms.length?(PICK.rows.length+' of '+SITES.length+' sites'):(SITES.length+(SITES.length===1?' site':' sites'));
+ PICK.kb=-1;scrollEdges();
+ return true;
+}
 $('site-q').addEventListener('keydown',e=>{
  if(e.key==='ArrowDown'){e.preventDefault();pickMove(1);}
  else if(e.key==='ArrowUp'){e.preventDefault();pickMove(-1);}
  else if(e.key==='Enter'){const s=PICK.rows[PICK.kb<0?0:PICK.kb];if(s)selectSite(s);}
- else if(e.key==='Escape'&&PICK.q){e.stopPropagation();PICK.q='';e.target.value='';renderPicker();}
+ else if(e.key==='Escape'&&PICK.q){e.stopPropagation();PICK.q='';e.target.value='';if(!filterPicker())renderPicker();}
 });
 $('site-sort').addEventListener('change',e=>{PICK.sort=e.target.value;lsSet(PK.sort,PICK.sort);renderPicker();});
 $('site-density').onclick=()=>{PICK.dense=!PICK.dense;lsSet(PK.dense,PICK.dense?'1':'0');renderPicker();};
@@ -1837,29 +2139,78 @@ document.addEventListener('keydown',e=>{
  else if(e.key==='ArrowUp'){e.preventDefault();pickMove(-1);}
  else if(e.key==='Enter'&&PICK.kb>=0&&PICK.rows[PICK.kb])selectSite(PICK.rows[PICK.kb]);
 });
-async function showPicker(){
- if(Object.values(files).some(st=>st.dirty)&&!confirm('Discard unsaved changes and switch site?'))return;
+/* Everything that belongs to the open site. Called when the user leaves it
+   (the discard prompt on the way to the picker) and again when another site
+   has loaded, so nothing from site A (cached files, in-flight loads, undo
+   history, timers, open panels, the drawer's bound form) can reach site B. */
+function resetSiteState(){
+ SITEGEN++;
+ for(const k in files)delete files[k];
+ for(const k in LOADING)delete LOADING[k];
+ for(const k in PAGEFILES)delete PAGEFILES[k];
+ clearTimeout(HIST.t);HIST.t=null;HIST.stack=[];HIST.idx=-1;histBtns();   // undo history belongs to the old site
+ if(pubTimer){clearInterval(pubTimer);pubTimer=null;}
+ DRAFTGEN++;
+ closeSel();$('selbody').innerHTML='';
+ $('drawer').classList.remove('open');$('scrim').classList.remove('show');
+ $('content').innerHTML='';$('sec-title').textContent='';
+ closeMenu();
+ updateSaveHint();
+}
+/* The picker's error line (a site that would not open, the list not loading). */
+function pickErr(t){const e=$('pick-err');if(e)e.textContent=t||'';}
+async function showPicker(have){
+ if(SAVING){setMsg('Still saving. Switch sites when it finishes.','err');return;}
+ if(Object.values(files).some(st=>st.dirty)){
+  if(!confirm('Discard unsaved changes and switch site?'))return;
+  resetSiteState();   /* discard now: otherwise autosave keeps saving them behind the picker */
+ }
  $('app').style.display='none';$('gate').style.display='none';$('picker').style.display='flex';
- const r=await api('/api/sites');
+ pickErr('');
+ let r=(have&&have.status===200)?have:null;   /* enter() just fetched it */
+ if(!r){try{r=await api('/api/sites');}catch(e){r={status:0,json:{error:'network error'}};}}
  if(r.status===401){sessionStorage.removeItem('jrd-admin-key');location.reload();return;}
- SITES=(r.json&&r.json.sites)||[];
+ if(r.status!==200){pickErr('Could not load your sites: '+((r.json&&r.json.error)||('error '+r.status))+'. Reload to try again.');if(!SITES.length)return;}
+ else SITES=(r.json&&r.json.sites)||[];
  PICK.q='';PICK.kb=-1;
  const q=$('site-q');if(q)q.value='';
  const so=$('site-sort');if(so)so.value=PICK.sort;
  renderPicker();
  if(q&&SITES.length>6&&window.matchMedia&&window.matchMedia('(hover:hover)').matches)setTimeout(()=>q.focus(),40);
 }
+let OPENING=null;   /* one site open at a time (a double click or a double Enter used to run two) */
 async function selectSite(s){
- curSite=s;sessionStorage.setItem('jrd-admin-site',s.id);markSeen(s.id);
- const r=await api('/api/load?file='+encodeURIComponent(s.schema||'_schema.json')+'&site='+encodeURIComponent(s.id));
- if(r.status!==200){alert('Could not load the schema for '+s.label+': '+((r.json&&r.json.error)||r.status));return;}
- compileSchema(r.json.content);
- for(const k in files)delete files[k];        // clear cache when switching repos
- clearTimeout(HIST.t);HIST.t=null;HIST.stack=[];HIST.idx=-1;histBtns();   // undo history belongs to the old site
- const first=SECTIONS.find(x=>x.id&&sectionVisible(x));curId=first?first.id:'home';
- $('siteLabel').textContent=s.label;
- $('picker').style.display='none';$('gate').style.display='none';$('app').style.display='block';
- initApp();
+ if(OPENING)return;
+ if(SAVING){setMsg('Still saving. Switch sites when it finishes.','err');return;}
+ OPENING=s;
+ try{
+  /* The schema loads BEFORE anything switches. Until it has, curSite and the
+     cached files still belong to the previous site, so a failure changes
+     nothing and a save in flight can never be sent under the new site's id. */
+  let r;
+  try{r=await api('/api/load?file='+encodeURIComponent(s.schema||'_schema.json')+'&site='+encodeURIComponent(s.id));}
+  catch(e){r={status:0,json:{error:'network error'}};}
+  if(r.status===401){sessionStorage.removeItem('jrd-admin-key');location.reload();return;}
+  if(r.status!==200||!r.json||!r.json.content){
+   const outage=r.status===0||r.status===503;   /* a passing outage, not a broken site */
+   const why=String((r.json&&r.json.error)||('error '+r.status)).replace(/[.\s]+$/,'');
+   /* a remembered site that cannot open would otherwise be retried on every reload */
+   if(!outage&&sessionStorage.getItem('jrd-admin-site')===s.id&&(!curSite||curSite.id!==s.id))sessionStorage.removeItem('jrd-admin-site');
+   if($('picker').style.display!=='flex'||!$('sitelist').children.length){OPENING=null;await showPicker();}
+   pickErr('Could not open '+s.label+': '+why+'.'+(outage?'':' Check that the CMS GitHub token can read '+(s.repo||'its repo')+', then try again.'));
+   return;
+  }
+  resetSiteState();
+  curSite=s;sessionStorage.setItem('jrd-admin-site',s.id);markSeen(s.id);
+  /* the preview cards are live copies of every client site; drop them once the
+     picker closes instead of keeping them running under the editor all session */
+  if(thumbObs){thumbObs.disconnect();thumbObs=null;}$('sitelist').innerHTML='';pickErr('');
+  compileSchema(r.json.content);
+  const first=SECTIONS.find(x=>x.id&&sectionVisible(x));curId=first?first.id:'home';
+  $('siteLabel').textContent=s.label;
+  $('picker').style.display='none';$('gate').style.display='none';$('app').style.display='block';
+  initApp();
+ }finally{if(OPENING===s)OPENING=null;}
 }
 /* ============ auth gate v2 (accounts + sessions) ============ */
 let ME=null;
@@ -1876,16 +2227,17 @@ function sectionVisible(sec){
 }
 async function postJSON(p,body,adminKey){const h={'Content-Type':'application/json'};if(adminKey)h['x-admin-key']=key();const r=await fetch(p,{method:'POST',headers:h,body:JSON.stringify(body)});return{status:r.status,json:await r.json().catch(()=>({}))};}
 function renderMe(){const el2=$('meLabel');if(el2&&ME)el2.textContent=(ME.name||ME.email)+' · '+ME.role;const adm=(ME&&(ME.role==='owner'||ME.role==='admin'));const ub=$('usersBtn');if(ub)ub.style.display=adm?'':'none';const pu=$('picker-users');if(pu)pu.style.display=adm?'':'none';}
-async function enter(){
- const r=await api('/api/sites');
- if(r.status!==200){$('gate').style.display='flex';$('gate-err').textContent='Signed in, but sites failed to load: '+(r.json.error||r.status);return;}
+async function enter(pre){
+ let r=(pre&&pre.status===200)?pre:null;   /* the boot block fetched it in parallel with /me */
+ if(!r){try{r=await api('/api/sites');}catch(e){r={status:0,json:{error:'network error'}};}}
+ if(r.status!==200){$('gate').style.display='flex';$('gate-err').textContent='Signed in, but sites failed to load: '+((r.json&&r.json.error)||r.status);return;}
  SITES=(r.json&&r.json.sites)||[];
  $('gate').style.display='none';
  const last=sessionStorage.getItem('jrd-admin-site');
  const found=last&&SITES.find(s=>s.id===last);
  if(found)selectSite(found);
  else if(!meIsAdmin()&&SITES.length===1)selectSite(SITES[0]);
- else showPicker();
+ else showPicker(r);
 }
 async function doLogin(){
  $('gate-err').textContent='';
@@ -1895,7 +2247,7 @@ async function doLogin(){
  if(r.status===200&&r.json.totp){PENDING={mode:'password',email:body.email,password:body.password};showTotpStep();return;}
  if(r.status===200&&r.json.enrollRequired){PENDING={};startEnroll(r.json.preToken);return;}
  if(r.status===200){ME=r.json.user;renderMe();enter();return;}
- if(r.status===409&&r.json.error==='no-users'){$('boot-extra').style.display='block';$('gate-title').textContent='Create the owner account';$('gate-err').textContent='First run \u2014 add your name and the legacy admin key to create the owner account.';return;}
+ if(r.status===409&&r.json.error==='no-users'){$('boot-extra').style.display='block';$('gate-title').textContent='Create the owner account';$('gate-err').textContent='First run: add your name and the legacy admin key to create the owner account.';return;}
  $('gate-err').textContent=r.json.error||('Login failed ('+r.status+')');
 }
 let PENDING={};
@@ -1911,8 +2263,16 @@ async function finishTotpLogin(extra){
 $('totp-go').onclick=()=>finishTotpLogin({code:$('totp-code').value});
 $('totp-code').addEventListener('keydown',e=>{if(e.key==='Enter')$('totp-go').click();});
 $('totp-backup').onclick=()=>{const c=prompt('Enter one of your backup codes:');if(c)finishTotpLogin({backup:c});};
-async function startEnroll(preToken){
- $('gate-login').style.display='none';$('gate-totp').style.display='none';$('gate-enroll').style.display='block';$('gate-title').textContent='Set up 2FA';
+/* onDone is given when 2FA is turned on from inside the editor: the user can
+   cancel, and either way returns to the loaded editor with every unsaved edit.
+   Without it (enrollment required at sign-in) finishing continues into enter(). */
+async function startEnroll(preToken,onDone){
+ $('gate-login').style.display='none';$('gate-totp').style.display='none';$('gate-backup').style.display='none';$('gate-enroll').style.display='block';$('gate-title').textContent='Set up 2FA';
+ $('enroll-err').textContent='';$('enroll-code').value='';$('enroll-secret').textContent='';$('enroll-qr').innerHTML='';$('enroll-qr').style.display='none';
+ const back=()=>{$('gate-enroll').style.display='none';$('gate-backup').style.display='none';$('gate-login').style.display='block';$('gate-title').textContent='Sign in';};
+ const cancel=$('enroll-cancel');
+ cancel.style.display=onDone?'':'none';
+ cancel.onclick=()=>{back();if(onDone)onDone(false);};
  const r=await postJSON('/api/auth/totp',{action:'setup',preToken:preToken});
  if(r.status!==200){$('enroll-err').textContent=r.json.error||'Setup failed';return;}
  $('enroll-secret').textContent=r.json.secret.replace(/(.{4})/g,'$1 ').trim();
@@ -1930,7 +2290,7 @@ async function startEnroll(preToken){
   ME=c.json.user;renderMe();
   $('gate-enroll').style.display='none';$('gate-backup').style.display='block';$('gate-title').textContent='Backup codes';
   $('backup-codes').innerHTML=(c.json.backupCodes||[]).map(x=>esc(x)).join('<br>');
-  $('backup-done').onclick=()=>{$('gate-backup').style.display='none';$('gate-login').style.display='block';enter();};
+  $('backup-done').onclick=()=>{back();if(onDone)onDone(true);else enter();};
  };
 }
 /* Sign in with Google. The button only appears when GOOGLE_CLIENT_ID is set on
@@ -1964,12 +2324,22 @@ async function onGoogleCredential(resp){
  if(r.status===200&&r.json.user){ME=r.json.user;renderMe();enter();return;}
  $('gate-err').textContent=(r.json&&r.json.error)||('Google sign-in failed ('+r.status+')');
 }
-initGoogle();
 $('login').onclick=doLogin;
-$('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+$('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});   /* the only Enter handler: a second one sent every login twice */
 $('forgot').onclick=async()=>{const em=$('em').value.trim();if(!em){$('gate-err').textContent='Type your email above first, then click Forgot password.';return;}const r=await postJSON('/api/auth/reset',{email:em});$('gate-err').textContent=r.json.note||r.json.error||'Check your email.';};
-$('legacy').onclick=async()=>{const k=prompt('Legacy admin key:');if(!k)return;sessionStorage.setItem('jrd-admin-key',k);const r=await api('/api/sites');if(r.status===200){SITES=(r.json&&r.json.sites)||[];ME={id:'__legacy__',name:'Admin',email:'(legacy key)',role:'owner'};renderMe();$('gate').style.display='none';showPicker();}else{sessionStorage.removeItem('jrd-admin-key');$('gate-err').textContent='That key was not accepted.';}};
-async function signOut(){try{await postJSON('/api/auth/logout',{});}catch(e){}sessionStorage.removeItem('jrd-admin-key');sessionStorage.removeItem('jrd-admin-site');location.reload();}
+$('legacy').onclick=async()=>{const k=prompt('Legacy admin key:');if(!k)return;sessionStorage.setItem('jrd-admin-key',k);let r;try{r=await api('/api/sites');}catch(e){r={status:0,json:{}};}
+ if(r.status===200){SITES=(r.json&&r.json.sites)||[];ME={id:'__legacy__',name:'Admin',email:'(legacy key)',role:'owner'};renderMe();$('gate').style.display='none';showPicker(r);}
+ else if(r.status===401||r.status===403){sessionStorage.removeItem('jrd-admin-key');$('gate-err').textContent='That key was not accepted.';}
+ else $('gate-err').textContent=(r.json&&r.json.error)||'The editor could not be reached. Try again in a moment.';};   /* an outage (503) is not a wrong key */
+/* Sign-out destroys the session before the page reloads, so ask about unsaved
+   edits first: answering "Stay" at the browser's leave prompt afterwards would
+   leave an editor that can no longer save anything. */
+async function signOut(){
+ if(Object.values(files).some(s=>s.dirty)&&!confirm('You have unsaved changes. Sign out and discard them?'))return;
+ for(const k in files)delete files[k];
+ try{await postJSON('/api/auth/logout',{});}catch(e){}
+ sessionStorage.removeItem('jrd-admin-key');sessionStorage.removeItem('jrd-admin-site');location.reload();
+}
 $('picker-logout').onclick=signOut;
 
 /* invite / reset links land here with ?setpw=TOKEN */
@@ -1986,6 +2356,12 @@ $('setpw-go').onclick=async()=>{
  if($('npw').value!==$('npw2').value){$('setpw-err').textContent='Passwords do not match.';return;}
  const r=await postJSON('/api/auth/set-password',{token:SETPW_TOKEN,password:$('npw').value});
  if(r.status===200){ME=r.json.user;renderMe();history.replaceState(null,'',location.pathname);enter();}
+ else if(r.json&&r.json.passwordSaved){   /* 2FA account: the link set the password, the code step happens at sign-in */
+  history.replaceState(null,'',location.pathname);
+  $('gate-setpw').style.display='none';$('gate-login').style.display='block';$('gate-title').textContent='Sign in';
+  const gw=$('gsi-wrap');if(gw)$('gate-login').insertBefore(gw,$('gate-login').firstChild);
+  $('gate-err').textContent=r.json.error;$('em').focus();
+ }
  else $('setpw-err').textContent=r.json.error||('Failed ('+r.status+')');
 };
 
@@ -2035,7 +2411,7 @@ async function showUsers(){
   if(!(ME&&u.id===ME.id))mkb('Remove',async()=>{if(!confirm('Remove '+u.email+'?'))return;const r2=await postJSON('/api/auth/users',{action:'delete',id:u.id},true);if(r2.status===200)showUsers();else alert(r2.json.error||'Failed');});
   box.appendChild(row);
  });
- if(!(j.users||[]).length)box.innerHTML='<p class="msg">No users yet \u2014 send the first invite below.</p>';
+ if(!(j.users||[]).length)box.innerHTML='<p class="msg">No users yet. Send the first invite below.</p>';
 }
 /* --- per-user access editor (sites, sections, capabilities, presets) --- */
 const PRESETS={
@@ -2045,11 +2421,13 @@ const PRESETS={
  'editor':{sections:'*',caps:{canPublish:true,canDelete:true,canUpload:true,canTheme:false,canDownload:false}},
  'contributor':{sections:'*',caps:{canPublish:false,canDelete:false,canUpload:true,canTheme:false,canDownload:false}},
 };
+const SECS={};   /* schema sections per site: draw() runs on every checkbox, so fetch each once */
 async function siteSections(siteId){
+ if(SECS[siteId])return SECS[siteId];
  const site=SITES.find(x=>x.id===siteId);if(!site)return[];
- const r=await api('/api/load?file='+encodeURIComponent(site.schema||'_schema.json')+'&site='+encodeURIComponent(siteId));
- if(r.status!==200)return[];
- return (r.json.content.sections||[]).filter(x=>!x.group&&x.id).map(x=>({id:x.id,label:x.label||x.id}));
+ let r;try{r=await api('/api/load?file='+encodeURIComponent(site.schema||'_schema.json')+'&site='+encodeURIComponent(siteId));}catch(e){return[];}
+ if(r.status!==200||!r.json||!r.json.content)return[];
+ return (SECS[siteId]=(r.json.content.sections||[]).filter(x=>!x.group&&x.id).map(x=>({id:x.id,label:x.label||x.id})));
 }
 function openAccess(u,row){
  const old=row.nextElementSibling;
@@ -2072,7 +2450,11 @@ function openAccess(u,row){
  box.appendChild(prow);
 
  const body=document.createElement('div');box.appendChild(body);
+ /* draw() awaits each site's sections; a click while it waits starts a newer
+    draw, and the older one must stop instead of appending a second copy */
+ let drawGen=0;
  async function draw(){
+  const g=++drawGen;
   body.innerHTML='';
   body.appendChild(h('Sites this user can open'));
   body.appendChild(cb('All sites (including future ones)',st.sites.includes('*'),v=>{st.sites=v?['*']:[];draw();}));
@@ -2095,6 +2477,7 @@ function openAccess(u,row){
    body.appendChild(cb('All sections',all,v=>{p.sections=v?['*']:[];draw();}));
    if(!all){
     const secs=await siteSections(sid);
+    if(g!==drawGen)return;
     const gg=grid();
     secs.forEach(sec=>{
      gg.appendChild(cb(sec.label,p.sections.includes(sec.id),v=>{
@@ -2151,12 +2534,15 @@ $('secBtn').onclick=async()=>{
   if(r.status===200){ME=r.json.user;alert('2FA is now off.');}else alert(r.json.error||'Failed');
   return;
  }
- /* enable flow, inline via the gate screens over the app */
+ /* enable flow, inline via the gate screens over the app. The editor stays
+    loaded underneath with every unsaved edit; finishing or canceling just
+    closes the gate again (it used to run enter(), which reopened the site and
+    wiped the unsaved edits). */
  $('gate').style.display='flex';$('gate-login').style.display='none';
- startEnroll(null);
- const done=$('backup-done');
- const orig=done.onclick;
- /* backup-done handler set inside startEnroll -> after it, close the gate back to the app */
+ startEnroll(null,ok=>{
+  $('gate').style.display='none';
+  if(ok)setMsg('Two-factor authentication is on. Keep your backup codes somewhere safe.','ok');
+ });
 }
 $('picker-users').onclick=showUsers;
 $('users-close').onclick=()=>{$('userspanel').style.display='none';};
@@ -2171,14 +2557,18 @@ $('inv-send').onclick=async()=>{
 
 /* ============ boot: resume an existing session ============ */
 (async()=>{
- if(SETPW_TOKEN)return;
- try{
-  const r=await fetch('/api/auth/me');
-  if(r.status===200){const j=await r.json();ME=j.user;renderMe();enter();return;}
- }catch(e){}
+ if(SETPW_TOKEN){initGoogle();return;}
+ const sitesP=api('/api/sites').catch(()=>null);   /* in parallel with /me; signed out it is a GitHub-free 401 */
+ let me=null;
+ try{me=await fetch('/api/auth/me');}catch(e){}
+ if(me&&me.status===200){const j=await me.json().catch(()=>({}));if(j&&j.user){ME=j.user;renderMe();enter(await sitesP);return;}}
+ /* an outage (503/5xx) is not a sign-out: say so rather than just showing the form */
+ if(me&&me.status>=500){const j=await me.json().catch(()=>({}));$('gate-err').textContent=(j&&j.error)||'Sign-in is unavailable right now. Try again in a moment.';}
+ initGoogle();   /* ~160KB of Google script + button frame, only for people who see the sign-in form */
  if(key()){
-  const r2=await api('/api/sites');
-  if(r2.status===200){SITES=(r2.json&&r2.json.sites)||[];ME={id:'__legacy__',name:'Admin',email:'(legacy key)',role:'owner'};renderMe();$('gate').style.display='none';const last=sessionStorage.getItem('jrd-admin-site');const found=last&&SITES.find(s=>s.id===last);if(found)selectSite(found);else showPicker();}
+  const r2=await sitesP;
+  if(r2&&r2.status===200){SITES=(r2.json&&r2.json.sites)||[];ME={id:'__legacy__',name:'Admin',email:'(legacy key)',role:'owner'};renderMe();$('gate').style.display='none';const last=sessionStorage.getItem('jrd-admin-site');const found=last&&SITES.find(s=>s.id===last);if(found)selectSite(found);else showPicker(r2);}
+  else if(r2&&r2.status>=500)$('gate-err').textContent=(r2.json&&r2.json.error)||'The editor could not be reached. Try again in a moment.';
  }
 })();
 /* ============ add-site form ============ */
@@ -2219,14 +2609,16 @@ async function submitAddSite(){
   files:$('as-files').value.split('\n').map(s=>s.trim()).filter(Boolean)
  };
  $('as-err').className='err';$('as-err').style.color='#94a3b8';$('as-err').textContent=addMode==='edit'?'Saving…':'Adding…';$('as-add').disabled=true;
- const r=await api('/api/sites',{method:'POST',body:JSON.stringify({op:addMode,site})});
- $('as-add').disabled=false;$('as-err').style.color='';
+ let r;
+ try{r=await api('/api/sites',{method:'POST',body:JSON.stringify({op:addMode,site})});}
+ catch(e){r={status:0,json:{error:'Network error. Check your connection and try again.'}};}
+ finally{$('as-add').disabled=false;$('as-err').style.color='';}
  if(r.status!==200){$('as-err').textContent=(r.json&&r.json.error)||('Error '+r.status);return;}
  SITES=(r.json&&r.json.sites)||SITES;
  closeAddSite();renderPicker();
 }
 async function deleteSite(s){
- if(!confirm('Remove “'+s.label+'” from the CMS?\n\nThis only removes it from the site list — it does NOT delete the repo or the live website.'))return;
+ if(!confirm('Remove “'+s.label+'” from the CMS?\n\nThis only removes it from the site list. It does NOT delete the repo or the live website.'))return;
  const r=await api('/api/sites',{method:'POST',body:JSON.stringify({op:'delete',id:s.id})});
  if(r.status!==200){alert('Delete failed: '+((r.json&&r.json.error)||r.status));return;}
  SITES=(r.json&&r.json.sites)||SITES;
@@ -2252,7 +2644,6 @@ $('as-add').onclick=submitAddSite;
 $('as-cancel').onclick=closeAddSite;
 $('as-label').addEventListener('blur',()=>{if(!$('as-id').value)$('as-id').value=slugify($('as-label').value);});
 $('as-files').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey))submitAddSite();});
-$('pw').addEventListener('keydown',e=>{if(e.key==='Enter')$('login').click();});
 window.addEventListener('beforeunload',e=>{if(Object.values(files).some(s=>s.dirty)){e.preventDefault();e.returnValue='';}});
 /* session resume handled by the auth-gate boot block above */
 </script>
