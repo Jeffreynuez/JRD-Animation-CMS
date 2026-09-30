@@ -89,7 +89,9 @@ const ETAGS = new Map();
 const ETAG_MAX = 60, ETAG_MAX_BYTES = 300000;
 async function gh(path, opts = {}) {
   const get = !opts.method || String(opts.method).toUpperCase() === 'GET';
-  const cacheable = get && !opts.redirect;
+  /* noEtag: reads of a file at a commit never change, so the version history
+     keeps its own cache for them instead of pushing hot paths out of this one */
+  const cacheable = get && !opts.redirect && !opts.noEtag;
   const hit = cacheable ? ETAGS.get(path) : null;
   const res = await fetch('https://api.github.com' + path, {
     ...opts,
@@ -114,5 +116,87 @@ async function gh(path, opts = {}) {
   return { status: res.status, json, headers: res.headers };
 }
 
+/* ===== history regions: BEGIN (copied verbatim into admin.html; a test compares the two) =====
+   Which schema section owns which part of a data file. A block covers the
+   value at its path ('' is the file's top level); a path belongs to the
+   block with the longest matching path, so a nested block of another section
+   (about.story inside about) keeps what is under it. Two blocks on the same
+   path are told apart by their field keys. */
+function histBlocks(sections){
+ const out=[];
+ (sections||[]).forEach(s=>{
+  if(!s||s.group||!s.id)return;
+  (s.blocks||[]).forEach(b=>{
+   const file=(b&&b.file)||s.file;if(!file)return;
+   const keys=Array.isArray(b.fields)?b.fields.map(x=>String((x&&x.k)||'').split('.')[0]).filter(Boolean):null;
+   out.push({sec:String(s.id),file:String(file),path:String(b.path||''),keys});
+  });
+ });
+ return out;
+}
+function histOwner(blocks,file,x){
+ let best=[],bl=-1;
+ blocks.forEach(b=>{
+  if(b.file!==file)return;
+  const P=b.path;
+  if(!(P===''||x===P||x.indexOf(P+'.')===0))return;
+  const L=P===''?0:P.split('.').length;
+  if(L>bl){best=[b];bl=L;}else if(L===bl)best.push(b);
+ });
+ if(!best.length)return '';
+ if(best.length>1){
+  const P=best[0].path,rest=x===P?'':(P===''?x:x.slice(P.length+1)),k=rest.split('.')[0];
+  const hit=best.find(b=>b.keys&&b.keys.indexOf(k)>=0);
+  if(hit)return hit.sec;
+ }
+ return best[0].sec;
+}
+/* sections with a block strictly inside path x */
+function histUnder(blocks,file,x){
+ const out=[];
+ blocks.forEach(b=>{if(b.file===file&&b.path!==x&&(x===''?b.path!=='':b.path.indexOf(x+'.')===0))out.push(b.sec);});
+ return out;
+}
+/* the paths where a and b differ: leaves, plus any list whose length changed
+   and any value whose type changed. An object that exists on one side only is
+   walked key by key, so each added or removed field is reported on its own. */
+function histChanged(a,b,x,out){
+ if(a===b)return;
+ const po=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
+ if((po(a)||po(b))&&(po(a)||a===undefined)&&(po(b)||b===undefined)){
+  const A=po(a)?a:{},B=po(b)?b:{};
+  Array.from(new Set(Object.keys(A).concat(Object.keys(B)))).forEach(k=>histChanged(A[k],B[k],x?x+'.'+k:k,out));
+  return;
+ }
+ if(Array.isArray(a)&&Array.isArray(b)&&a.length===b.length){a.forEach((v,i)=>histChanged(v,b[i],x?x+'.'+i:String(i),out));return;}
+ if(JSON.stringify(a)===JSON.stringify(b))return;
+ out.push(x);
+}
+/* section ids that changed between two versions of one file ('_other' for a
+   change no section owns). styles.json is keyed by the edited element's
+   stamp, "<file>#<path>", so each changed key maps to that element's section. */
+function histParts(blocks,file,a,b){
+ const out=new Set();
+ if(file==='styles.json'){
+  const A=(a&&typeof a==='object')?a:{},B=(b&&typeof b==='object')?b:{};
+  new Set(Object.keys(A).concat(Object.keys(B))).forEach(k=>{
+   if(JSON.stringify(A[k])===JSON.stringify(B[k]))return;
+   const i=k.indexOf('#');
+   out.add((i>0&&histOwner(blocks,k.slice(0,i),k.slice(i+1)))||'_other');
+  });
+  return Array.from(out);
+ }
+ const xs=[];
+ histChanged(a==null?{}:a,b==null?{}:b,'',xs);
+ xs.forEach(x=>{
+  const under=histUnder(blocks,file,x);
+  const own=histOwner(blocks,file,x);
+  if(own)out.add(own);else if(!under.length)out.add('_other');
+  under.forEach(s=>out.add(s));
+ });
+ return Array.from(out);
+}
+/* ===== history regions: END ===== */
+
 module.exports = { HOME_REPO, HOME_BRANCH, REGISTRY_PATH, bundledSites, getRegistry, getSites, getSite, canRead, canWrite, checkAuth, bootstrapKeyOk, gh,
-  FILE_RE, SLUG_RE, parseJson, parseB64Json };
+  FILE_RE, SLUG_RE, parseJson, parseB64Json, histBlocks, histOwner, histUnder, histChanged, histParts };

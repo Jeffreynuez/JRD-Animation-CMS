@@ -406,12 +406,17 @@ async function draftState(siteId, file) {
    carries the expected sha (or none), and GitHub refuses it if the draft has
    changed. The usual save is therefore ONE call with no read-then-write race;
    only a refused write reads the draft, to say who changed it.
-   Resolves { ok:true, sha } | { ok:false, conflict:{ sha, author, savedAt } } | { ok:false }. */
-async function writeDraft(siteId, file, data, expect) {
+   Resolves { ok:true, sha } | { ok:false, conflict:{ sha, author, savedAt } } | { ok:false }.
+   The commit message names the kind of save (save, autosave, schedule) and
+   who made it, so version history can list saves without opening each one. */
+const DRAFT_KINDS = ['save', 'autosave', 'schedule'];
+async function writeDraft(siteId, file, data, expect, meta) {
   const path = draftPath(siteId, file);
+  const kind = meta && DRAFT_KINDS.includes(meta.kind) ? meta.kind : 'save';
+  const by = who(data && data.author);
   const put = sha => {
     const body = {
-      message: 'cms: draft ' + siteId + '/' + file,
+      message: 'cms: ' + kind + ' ' + siteId + '/' + file + '\n\nSaved in the JRD editor by ' + by,
       content: Buffer.from(JSON.stringify(data, null, 1)).toString('base64'),
       branch: USERS_BRANCH,
     };
@@ -434,6 +439,26 @@ async function writeDraft(siteId, file, data, expect) {
   if (!cur.exists && !cur.unknown && expect) return wrote(await put(null)) || { ok: false };
   return { ok: false };
 }
+/* ---------- draft history (version history lists saves as well as publishes) ----------
+   Every save of a draft is a commit on its path in the users repo, and every
+   publish, approval or rejection is a commit that deletes it. */
+async function draftCommits(siteId, file, until, perPage) {
+  draftPath(siteId, file);                       /* validates site and file, throws if bad */
+  const q = 'path=' + encodeURIComponent('drafts/' + siteId + '/' + file) + '&sha=' + encodeURIComponent(USERS_BRANCH) +
+    '&per_page=' + (perPage || 100) + (until ? '&until=' + encodeURIComponent(until) : '');
+  const r = await gh(`/repos/${USERS_REPO}/commits?${q}`);
+  if (r.status !== 200 || !Array.isArray(r.json)) throw new Error('could not list saves (' + r.status + ')');
+  return r.json;
+}
+/* one stored draft as it was at a commit: its parsed data, or null when the
+   draft did not exist there (the commit that cleared it) */
+async function readDraftAt(siteId, file, ref) {
+  const r = await gh(draftPath(siteId, file) + '?ref=' + encodeURIComponent(String(ref)), { noEtag: true });
+  if (r.status === 404) return null;
+  if (r.status !== 200 || !r.json || typeof r.json.content !== 'string') throw new Error('could not read that save (' + r.status + ')');
+  return parseB64Json(r.json.content);
+}
+
 /* Every draft of a site with its parsed data: [{ file, sha, data }]. Walks
    subfolders (drafts/<site>/es/home.json -> file "es/home.json"). One
    unreadable draft is skipped, never allowed to hide the rest of the queue. */
@@ -553,6 +578,7 @@ module.exports = {
   authUser, hasCredentials, authed, isAdmin, who, publicUser, throttle, recordFail, recordOk,
   sendMail, inviteEmailHtml, setpwLink, readBody, validEmail, SESSION_DAYS,
   siteAllowed, can, allowedWriteFiles, siteSchema, readDraft, draftState, writeDraft, listDrafts, collectDrafts, draftSites, deleteDraft,
+  draftCommits, readDraftAt, USERS_BRANCH,
   totpCheck, newTotpSecret, otpauthURI, newBackupCodes, hashBackup, useBackupCode,
   GOOGLE_CLIENT_ID, verifyGoogleToken,
 };

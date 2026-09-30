@@ -80,7 +80,11 @@ module.exports = async (req, res) => {
       const t = new Date(String(b.publishAt));
       if (!isNaN(t)) draftData.publishAt = t.toISOString();
     }
-    const w = await A.writeDraft(site.id, String(file), draftData, expect).catch(() => ({ ok: false }));
+    /* the editor labels its saves; the label only picks one of three words for
+       the version history, nothing from the request reaches the commit text */
+    const kind = /^cms: autosave\b/.test(String(message || '')) ? 'autosave'
+      : /^cms: schedule\b/.test(String(message || '')) ? 'schedule' : 'save';
+    const w = await A.writeDraft(site.id, String(file), draftData, expect, { kind }).catch(() => ({ ok: false }));
     if (w.conflict) return draftConflict(res, String(file), w.conflict);
     if (!w.ok) return res.status(502).json({ error: 'could not store the draft' });
     return res.status(200).json({ ok: true, draft: true, sha: String(sha), draftSha: w.sha });
