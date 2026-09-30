@@ -85,6 +85,71 @@ shared piece is a `group` string per site, carried in `data/sites.json` and
 whitelisted in `full()` in api/sites.js (fields not in `full()` are dropped
 on every write, so anything new must be added there too).
 
+## Sweep of 2026-09-30 (read this before changing save, auth or drafts)
+
+A full audit fixed these; the behavior below is now load-bearing.
+
+Server:
+- `gh()` in `_lib.js` keeps an ETag per GET path and sends `If-None-Match`.
+  GitHub does not count a 304 against the token's 5000/h budget, so repeat
+  reads (users.json, the registry, schemas, data files) are nearly free and
+  never stale. A cached body is shared: treat `r.json` as read-only. The old
+  60 s `schemaCache` is gone, so schema and permission changes apply at once.
+- `A.hasCredentials(req)` (pure HMAC, no GitHub) runs first on every endpoint,
+  so anonymous traffic cannot spend the budget. `A.authed(req)` returns 503
+  when users.json cannot be read; the editor treats 503 as "try again", only
+  401 as signed out.
+- `readBody` ignores string bodies (text/plain can be sent cross-site without
+  a preflight). Every POST from admin.html must send application/json; `api()`
+  and `postJSON()` do.
+- Drafts: paths are validated centrally (`draftPath`: slug site id, registry
+  style file name), drafts in subfolders (`es/home.json`) list, approve,
+  reject and schedule correctly, and GET/POST resolve the site through the
+  registry. The cron sweep lists `drafts/` once and returns `next`, the
+  earliest future `publishAt`, which the editor uses to time its next poke.
+- Auth: set-password links work once (a password set after the link was
+  issued voids it), refuse disabled accounts, and never issue a session to an
+  account with 2FA on or required (it answers 401 `passwordSaved:true` and the
+  editor sends the user to the sign-in form). Sessions older than the last
+  password set are rejected. Wrong TOTP codes lock per account (5, then 10
+  min) and a password-only step no longer clears the count. Replacing an
+  enabled 2FA needs a current code. Reset is throttled per IP and per email.
+  Only an owner can mint a reset link for an owner.
+- `sign-upload` takes `{site, kind}` only. Cloud and folder come from that
+  site's schema after an access check. The media library needs
+  `mediaFolder` in the schema and returns an empty list without it (listing
+  with no prefix showed every client's assets in the shared cloud).
+- Commit messages name the editor by display name (`A.who`), never an email:
+  client repos can be public and commits are permanent.
+
+Editor (admin.html):
+- Undo/redo repaints the page for text, per-element color and alignment
+  (`styleDiffApply`), images and list item fields; History restore repaints
+  too. Files loaded after a snapshot are folded into every older snapshot.
+- Save, Publish, Schedule and autosave share one `SAVING` lock and pin the
+  site they started on. `postFile()` keeps edits typed during a request dirty.
+  A `publishAt` is only resent while it is in the future.
+- `selectSite` loads the schema BEFORE switching; `resetSiteState()` clears
+  everything that belonged to the old site (files, in-flight loads, undo,
+  timers, panels, drawer). `ensureFile` shares one request per file.
+- postMessage is accepted only from the editor frame, and paths containing
+  `__proto__`, `constructor` or `prototype` are refused.
+- Drawer thumbnails are 320px Cloudinary renditions (video: first frame), not
+  the original uploads. The short form `CDN:<public_id>` means an image upload.
+- Google Identity Services loads only for people who see the sign-in form.
+- Schema `kind:'lines'` blocks and lists of plain strings are supported.
+
+Still open (deliberately not done in the sweep):
+- Remove `ADMIN_PASSWORD` from the Vercel env once nobody uses the legacy key:
+  it is a full owner credential with no 2FA and no throttle.
+- Set `CRON_SECRET` so the daily Vercel cron authenticates.
+- Proguild's `_schema.json` has no `mediaFolder` (its assets are under
+  `proguild/`), so its media library shows nothing until one is added.
+- Two editors on one site overwrite each other's drafts; approve and the cron
+  sweep ignore a draft's `baseSha`.
+- Keystrokes typed in the second before a draft preloads are dropped with a
+  message; closing that fully needs a bridge `apply` that keeps the caret.
+
 ## Deploy workflow (this is the part people break)
 
 - Claude sessions CANNOT push to GitHub from the Cowork cloud sandbox (the
@@ -197,9 +262,9 @@ on every write, so anything new must be added there too).
 - Permissions enforce per **data file** server-side but per **section** in the
   UI. Sections sharing a file (several Home sections share `pages.json`) are
   only separated visually — don't promise file-level isolation between them.
-- Section grants map to files via each site's `data/_schema.json`, cached 60s
-  in `_auth.js` (`schemaCache`). New schema sections take up to a minute to
-  reflect in permissions.
+- Section grants map to files via each site's `data/_schema.json`, read
+  through the ETag cache in `gh()`, so new schema sections reflect in
+  permissions on the next request.
 - `canPublish`, `canTheme` and `canDownload` are **opt-in** caps (default
   false), listed in `OPT_IN_CAPS`;
   `canUpload` and `canDelete` are **default-on** (false only when explicitly
