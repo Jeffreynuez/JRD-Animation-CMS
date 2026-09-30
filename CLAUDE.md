@@ -32,7 +32,7 @@ on-page file-drop add/replace with buffer transfer (Files cloned across the
 iframe boundary fail to read — bytes are read in the iframe and transferred);
 on-page drag-reorder with a gold insertion divider; media library
 (sign-upload.js ?list=1, Cloudinary Admin API); version history + restore
-(load.js ?history=1, git commits per data file); focal point picker (stores a
+(load.js ?history=1, by page since round 3, see below); focal point picker (stores a
 `#fp=x,y` suffix on the media value — build.js strips it from URLs and emits
 object-position; admin cdn()/cloudParts strip it too); alt-text nudges;
 first-visit tour (localStorage jrd-tour-done); scheduled publishing
@@ -165,6 +165,56 @@ Round 2 (2026-09-30), closing the sweep's open items:
 Still open: the jrdanimation.com schema has no `mediaFolder` (it keeps almost
 no media on Cloudinary, so its library is simply empty).
 
+Round 3 (2026-09-30), version history by page:
+- History opens on the page you are viewing, with a dropdown for any other
+  page, "Whole site", and (from a drawer section's History button) that one
+  section. Each entry shows when, a badge (Published, Approved, Scheduled
+  publish, Saved with a save count, Site update for code deploys), who, and
+  chips for the schema sections it changed. "Restore page" puts every part
+  the page shows back; a chip restores only that part. Parts shared with
+  other pages (nav/footer, Products) are included, and the confirm box lists
+  the other pages that change too.
+- Saves are in the timeline: every draft write is a commit on
+  `drafts/<site>/<file>` in the users repo, and its message now names the
+  kind and the editor (`cms: autosave gcw/pages.json` + `Saved in the JRD
+  editor by <name>`; kinds save/autosave/schedule, picked in save.js from the
+  editor's own message). Older draft commits (`cms: draft ...`) count as
+  saves and get their name from the stored draft. Saves by one person with
+  gaps under 10 minutes form one session entry that expands to each save.
+- API (all in load.js, still 12 functions): `?history=1&files=a,b[&sections=
+  x,y][&until=iso]` merges both commit lists per file, groups publishes (same
+  person within 3 minutes), deploys (one commit however many files) and save
+  sessions, and computes each entry's changed sections by comparing the file
+  before and after it (publishes: live vs live; saves: editor state, where a
+  draft shadows the live file). With `sections` only entries touching them
+  come back. 25 entries per answer, `until` continues; a full 100-commit
+  list sets a floor so entries straddling it wait for the next page.
+  Versions at a commit are immutable: cached per instance and read with
+  `gh(..., {noEtag:true})` so they never push hot paths out of the ETag cache.
+  `?asof=iso&files=...&mode=editor|live` returns each file as it was then.
+  The old `?history=1&file=` and `?at=` modes still answer.
+- Which section owns a path: `histBlocks/histOwner/histParts` in `_lib.js`.
+  The block with the longest matching path wins (so `about.story` inside
+  `about` stays its own section); `''` is the file's top level; equal paths
+  are told apart by field keys. The SAME code is pasted in admin.html between
+  the `history regions: BEGIN/END` markers, and audit test t17 fails if the two
+  copies differ: change both together.
+- A page's sections come from the `data-edit` / `data-edit-item` stamps on the
+  live page (`pageStamps()`, replaces `pageFiles()`), mapped with histOwner.
+- Restore (`restoreVersion`) reads `?asof`, then `histMerge` copies only the
+  in-scope paths: objects merge key by key and a key the old version lacks
+  keeps its current value (never strips a field newer code needs), lists and
+  values are taken whole, a list with another section's block inside is
+  walked item by item. styles.json keys in scope take the old value or are
+  removed. Files that did not exist then are left alone. It loads into the
+  editor only, closes the side panel, and one Undo reverts all of it.
+
+View live and the preview use the registry `liveUrl`. After a DNS cutover,
+change it to the real domain (Edit site in the picker). Done 2026-09-30 for
+GC Windsor (www.gcwindsor.com), the JRD Portfolio (www.jrdelanuez.com) and
+Salee (saleestarbuck.com); Proguild stays on proguild.vercel.app because
+proguild.com is not the new site.
+
 ## Deploy workflow (this is the part people break)
 
 - Claude sessions CANNOT push to GitHub from the Cowork cloud sandbox (the
@@ -266,10 +316,10 @@ no media on Cloudinary, so its library is simply empty).
   Save button goes amber, because "off" should never be discovered by losing
   work.
 - **History** on the toolbar covers the page you are on. The schema has no
-  page-to-file mapping, so `pageFiles()` fetches the previewed page and reads
-  its `data-edit` file names; every managed site sends
-  `Access-Control-Allow-Origin: *`, which is what makes that possible. Falls
-  back to the registry's file list.
+  page-to-section mapping, so `pageStamps()` fetches the page from `liveUrl`
+  and reads its `data-edit` stamps; every managed site sends
+  `Access-Control-Allow-Origin: *`, which is what makes that possible. If the
+  page cannot be read, History falls back to the whole site.
 - **users.json + drafts/ live in the PRIVATE `USERS_REPO`** — never move them
   to a public repo (password hashes, TOTP secrets, backup-code hashes).
 - `_lib.js` ⇄ `_auth.js` have a deliberate lazy circular require
