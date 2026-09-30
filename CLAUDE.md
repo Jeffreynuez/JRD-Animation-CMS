@@ -209,6 +209,24 @@ Round 3 (2026-09-30), version history by page:
   removed. Files that did not exist then are left alone. It loads into the
   editor only, closes the side panel, and one Undo reverts all of it.
 
+Live list changes in Manage content (2026-09-30):
+- A site's `_schema.json` can declare `"bridge": [...]`, the messages its page
+  bridge (assets/js/main.js, ?edit=1) mirrors beyond text. With both
+  `item-field` and `item-media` listed (`itemsLive()`), a reorder in the
+  drawer (up, down, drag) repaints the page slots whose item changed, with the
+  same histDiffApply walk Undo uses. Without them the editor says the new order
+  shows after Publish instead of repainting (text-only bridges would pair one
+  item's text with another's image). GC Windsor declares it; the other sites'
+  bridges only handle text (plus styles/theme), so they do not.
+- load.js returns `live` (the published content) beside a draft. The editor
+  keeps `st.live` per file (updated after a publish), and on item-capable
+  sites repaintPreview repaints live -> editor with pushDiff, so a saved
+  reorder, image or item change shows after a reload too. Other sites keep
+  the text-only repaint.
+- Duplicate says the copy shows after Publish (a new slot cannot be drawn).
+- Publish carries an amber dot while any file is edited or saved but not
+  live; a saved draft is not live until Publish.
+
 View live and the preview use the registry `liveUrl`. After a DNS cutover,
 change it to the real domain (Edit site in the picker). Done 2026-09-30 for
 GC Windsor (www.gcwindsor.com), the JRD Portfolio (www.jrdelanuez.com) and
