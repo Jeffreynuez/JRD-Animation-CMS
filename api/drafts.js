@@ -2,10 +2,12 @@
 // without publish rights; they live in the private users repo, so they never
 // trigger a site rebuild until approved.
 //   GET  /api/drafts?site=<id>                       -> pending drafts (admins: all; editors: their own)
-//   POST /api/drafts {action:'approve', site, file}  -> publish the draft to the site repo (admin)
+//   POST /api/drafts {action:'approve', site, file[, force]} -> publish the draft to the site repo (admin).
+//        409 {code:'stale'} when the live file changed after the draft was made; force:true publishes anyway
 //   POST /api/drafts {action:'reject',  site, file}  -> discard the draft (admin)
 //   POST /api/drafts?cron=1                          -> publish due scheduled drafts; answers
-//        { ok, published, failed, next } where next is the earliest future publishAt (ISO) or null
+//        { ok, published, failed, held, next }: held lists due drafts NOT published because the live
+//        file changed after they were made; next is the earliest future publishAt (ISO) or null
 // `file` may sit in a subfolder (es/pages.json) exactly as in the site's registry entry.
 'use strict';
 const { getSite, getSites, canWrite, gh } = require('./_lib.js');
@@ -48,14 +50,20 @@ module.exports = async (req, res) => {
   }
 
   if (b.action === 'approve') {
-    const draft = await A.readDraft(site.id, file).catch(() => null);
-    if (!draft || !draft.data || !draft.data.content) return res.status(404).json({ error: 'draft no longer exists' });
-
-    /* current sha of the live file (the draft may be based on an older one -
-       approving takes the draft as the new truth) */
+    /* the draft and the live file are independent reads */
     const ref = site.branch ? '?ref=' + encodeURIComponent(site.branch) : '';
-    const cur = await gh(`/repos/${site.repo}/contents/data/${file}${ref}`);
+    const [draft, cur] = await Promise.all([
+      A.readDraft(site.id, file).catch(() => null),
+      gh(`/repos/${site.repo}/contents/data/${file}${ref}`),
+    ]);
+    if (!draft || !draft.data || !draft.data.content) return res.status(404).json({ error: 'draft no longer exists' });
     if (cur.status !== 200) return res.status(502).json({ error: 'could not read the live file (' + cur.status + ')' });
+
+    /* the draft was made from an older live file (someone published, or a code
+       deploy changed it): approving would silently undo that, so ask first.
+       force:true takes the draft as the new truth, as before. */
+    if (draft.data.baseSha && draft.data.baseSha !== cur.json.sha && b.force !== true)
+      return res.status(409).json({ code: 'stale', error: 'The live ' + file + ' changed after this draft was made (another publish or a code deploy). Approving replaces those changes with the draft.' });
 
     let text;
     try { text = JSON.stringify(draft.data.content, null, 1) + '\n'; }
@@ -63,7 +71,7 @@ module.exports = async (req, res) => {
 
     const body = {
       message: ('cms: publish draft ' + file + ' by ' + A.who(draft.data.author) +
-        ' (approved by ' + me.email + ')').slice(0, 200) + '\n\nCommitted via /admin CMS',
+        ' (approved by ' + A.who(me) + ')').slice(0, 200) + '\n\nCommitted via /admin CMS',
       content: Buffer.from(text, 'utf8').toString('base64'),
       sha: cur.json.sha,
     };
@@ -94,7 +102,7 @@ async function cronSweep(req, res) {
   if (!sites) return res.status(502).json({ error: 'registry unavailable' });
 
   const now = Date.now();
-  const published = [], failed = [];
+  const published = [], failed = [], held = [];
   let next = null;   /* earliest schedule still in the future, so the admin knows when to poke again */
   const todo = sites.filter(s => !withDrafts || withDrafts.has(s.id));
 
@@ -115,6 +123,9 @@ async function cronSweep(req, res) {
         const ref = site.branch ? '?ref=' + encodeURIComponent(site.branch) : '';
         const cur = await gh(`/repos/${site.repo}/contents/data/${d.file}${ref}`);
         if (cur.status !== 200) { failed.push(site.id + '/' + d.file); continue; }
+        /* the live file changed after this draft was made: publishing on a
+           timer would silently undo that, so hold it for a person to decide */
+        if (d.data.baseSha && d.data.baseSha !== cur.json.sha) { held.push(site.id + '/' + d.file); continue; }
         const body = {
           message: ('cms: scheduled publish ' + d.file + ' (set by ' + A.who(d.data.author) + ')').slice(0, 200) +
             '\n\nCommitted via /admin CMS',
@@ -130,5 +141,5 @@ async function cronSweep(req, res) {
       } catch (e) { failed.push(site.id + '/' + d.file); }
     }
   }));
-  res.status(200).json({ ok: true, published, failed, next: next === null ? null : new Date(next).toISOString() });
+  res.status(200).json({ ok: true, published, failed, held, next: next === null ? null : new Date(next).toISOString() });
 }

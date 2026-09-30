@@ -14,6 +14,22 @@ const ALLOWED = (process.env.CLOUDINARY_CLOUDS || 'dlgc3fj6w,dfmofrlt3')
   .split(',').map(s => s.trim()).filter(Boolean);
 const DEFAULT_CLOUD = process.env.CLOUDINARY_CLOUD_NAME || ALLOWED[0];
 const cleanFolder = f => String(f || '').trim().replace(/[^a-zA-Z0-9_\-/]/g, '');
+/* the cloud a schema's uploads really go to (signing falls back the same way) */
+const cloudOf = schema => { const c = String((schema && schema.cloudName) || '').trim(); return ALLOWED.includes(c) ? c : DEFAULT_CLOUD; };
+
+/* A site with no mediaFolder may list its whole cloud only when the cloud is
+   its own: no other registry site uploads there. The other sites' schemas are
+   read side by side (free 304s on a warm instance). A schema that cannot be
+   read counts as sharing, and so does an unreadable registry, so a GitHub
+   hiccup can never expose another client's media. */
+async function cloudIsOwn(site, cloud) {
+  const { getSites } = require('./_lib.js');
+  try {
+    const others = (await getSites()).filter(s => s && s.id !== site.id);
+    const clouds = await Promise.all(others.map(s => A.siteSchema(s).then(cloudOf, () => null)));
+    return clouds.every(c => c !== null && c !== cloud);
+  } catch (e) { return false; }
+}
 
 /* shared by both modes: auth, then the site (resolved in parallel), then access */
 async function siteFor(req, res, siteId) {
@@ -83,16 +99,19 @@ async function mediaLibrary(req, res) {
   const cloud = String(schema.cloudName || '').trim();
   const folder = cleanFolder(schema.mediaFolder);
   if (!cloud || !ALLOWED.includes(cloud)) return res.status(400).json({ error: 'this site has no media cloud configured' });
-  /* no folder means no prefix, which would list the WHOLE shared cloud (every
-     other client's assets), so the library stays empty until one is set */
-  if (!folder) return res.status(200).json({ items: [], cursor: null, note: 'Set "mediaFolder" in this site\'s data/_schema.json to use the media library.' });
+  /* no folder means no prefix, i.e. the WHOLE cloud. Fine when the cloud is
+     this site's alone (the JRD Portfolio on dfmofrlt3); on a shared cloud it
+     would show every other client's assets, so the library stays empty until
+     a folder is set */
+  if (!folder && !(await cloudIsOwn(ctx.site, cloud)))
+    return res.status(200).json({ items: [], cursor: null, note: 'Set "mediaFolder" in this site\'s data/_schema.json to use the media library.' });
 
   const apiKey = process.env.CLOUDINARY_API_KEY, apiSecret = process.env.CLOUDINARY_API_SECRET;
   if (!apiKey || !apiSecret) return res.status(501).json({ error: 'Cloudinary env vars not configured' });
 
   const kind = req.query.kind === 'video' ? 'video' : 'image';
   const qs = new URLSearchParams({ max_results: '60' });
-  qs.set('prefix', folder + '/');
+  if (folder) qs.set('prefix', folder + '/');
   if (req.query.cursor) qs.set('next_cursor', String(req.query.cursor));
 
   const r = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/resources/${kind}/upload?` + qs.toString(), {

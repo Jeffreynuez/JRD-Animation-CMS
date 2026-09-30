@@ -91,9 +91,10 @@ module.exports = async (req, res) => {
   /* ---- first run: no users exist yet -> bootstrap the owner ---- */
   if (!store.users.length) {
     if (!b.adminKey) return res.status(409).json({ error: 'no-users' }); // admin.html shows the bootstrap form
-    const { checkAuth } = require('../_lib.js');
-    if (!checkAuth({ headers: { 'x-admin-key': String(b.adminKey) } }))
-      return res.status(401).json({ error: 'Admin key incorrect.' });
+    /* the one remaining use of ADMIN_PASSWORD: it proves the right to create
+       the first owner on an empty install, and is no API credential */
+    const { bootstrapKeyOk } = require('../_lib.js');
+    if (!bootstrapKeyOk(b.adminKey)) { A.recordFail(tKey); return res.status(401).json({ error: 'Admin key incorrect.' }); }
     if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
     const owner = {
       id: require('crypto').randomUUID(), email, name: String(b.name || 'Owner').slice(0, 80),

@@ -60,8 +60,12 @@ module.exports = async (req, res) => {
   }
   /* a saved-but-unpublished draft shadows the live file in the editor, so
      work-in-progress survives leaving and coming back. The sha returned is
-     always the LIVE file's sha - publishing uses it for conflict detection. */
+     always the LIVE file's sha - publishing uses it for conflict detection.
+     draftSha is the stored draft's own sha (null when there is none): the
+     editor sends it back with its next save so a newer draft by someone else
+     is caught instead of overwritten. */
+  const draftSha = (draft && draft.sha) || null;
   if (draft && draft.data && draft.data.content)
-    return res.status(200).json({ content: draft.data.content, sha: r.json.sha, draft: true, draftAt: draft.data.savedAt || null, publishAt: draft.data.publishAt || null, draftBy: (draft.data.author && draft.data.author.email) || null });
-  res.status(200).json({ content, sha: r.json.sha });
+    return res.status(200).json({ content: draft.data.content, sha: r.json.sha, draft: true, draftAt: draft.data.savedAt || null, publishAt: draft.data.publishAt || null, draftBy: (draft.data.author && draft.data.author.email) || null, draftSha });
+  res.status(200).json({ content, sha: r.json.sha, draftSha });
 };

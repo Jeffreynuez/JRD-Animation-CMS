@@ -57,21 +57,25 @@ const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 const parseJson = text => JSON.parse(String(text == null ? '' : text).replace(/^\uFEFF/, ''));
 const parseB64Json = b64 => parseJson(Buffer.from(String(b64 || ''), 'base64').toString('utf8'));
 
+/* Is there a valid account session cookie? The only way into the API. The
+   old shared x-admin-key header is ignored everywhere now.
+   (lazy require avoids a circular import at load) */
 function checkAuth(req) {
-  /* 1. legacy shared admin key (kept during the migration to accounts) */
-  const key = req.headers['x-admin-key'] || '';
-  const pass = process.env.ADMIN_PASSWORD || '';
-  if (key && pass) {
-    const a = Buffer.from(String(key));
-    const b = Buffer.from(String(pass));
-    if (a.length === b.length && crypto.timingSafeEqual(a, b)) return true;
-  }
-  /* 2. account session cookie (lazy require avoids a circular import at load) */
   try {
     const s = require('./_auth.js').sessionFromReq(req);
-    if (s && s.purpose === 'session' && s.uid) return true;
-  } catch (e) { /* auth not configured yet */ }
-  return false;
+    return !!(s && s.purpose === 'session' && s.uid);
+  } catch (e) { return false; /* auth not configured yet */ }
+}
+
+/* First-run owner bootstrap ONLY (auth/login.js, and only while users.json has
+   no users): does the submitted key match ADMIN_PASSWORD? Never a credential
+   for any API call. Both sides are hashed first, so the compare is constant
+   time and does not leak the key's length. */
+function bootstrapKeyOk(key) {
+  const pass = process.env.ADMIN_PASSWORD || '';
+  if (!key || !pass) return false;
+  const h = v => crypto.createHash('sha256').update(String(v)).digest();
+  return crypto.timingSafeEqual(h(key), h(pass));
 }
 
 /* Conditional-request cache. GitHub does not count a 304 against the token's
@@ -110,5 +114,5 @@ async function gh(path, opts = {}) {
   return { status: res.status, json, headers: res.headers };
 }
 
-module.exports = { HOME_REPO, HOME_BRANCH, REGISTRY_PATH, bundledSites, getRegistry, getSites, getSite, canRead, canWrite, checkAuth, gh,
+module.exports = { HOME_REPO, HOME_BRANCH, REGISTRY_PATH, bundledSites, getRegistry, getSites, getSite, canRead, canWrite, checkAuth, bootstrapKeyOk, gh,
   FILE_RE, SLUG_RE, parseJson, parseB64Json };

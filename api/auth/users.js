@@ -11,6 +11,7 @@ module.exports = async (req, res) => {
   if (!A.configured(res)) return;
   let me;
   try { me = await A.authUser(req); } catch (e) { return res.status(502).json({ error: e.message }); }
+  if (!me) return res.status(401).json({ error: 'unauthorized' });
   if (!A.isAdmin(me)) return res.status(403).json({ error: 'Admins only.' });
 
   let store;

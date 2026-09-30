@@ -16,7 +16,7 @@ module.exports = async (req, res) => {
   /* resolve the acting account (session or enrollment pre-token) */
   let uid = null, viaPre = false;
   const me = await A.authUser(req).catch(() => null);
-  if (me && me.id !== '__legacy__') uid = me.id;
+  if (me) uid = me.id;
   if (!uid && b.preToken) {
     const t = A.verifyToken(String(b.preToken));
     if (t && t.purpose === 'totp-enroll') { uid = t.uid; viaPre = true; }

@@ -117,26 +117,22 @@ function sessionFromReq(req) {
    change carries the same second and stays valid. */
 const sessionPredatesPassword = (s, u) =>
   !!u.passwordSetAt && Number(s.iat) < Math.floor(Date.parse(u.passwordSetAt) / 1000);
-/* Resolve the calling user. Supports the legacy x-admin-key during migration
-   (it acts as the owner). Returns null when unauthenticated. */
+/* Resolve the calling user from the session cookie, the only credential.
+   Returns null when unauthenticated. */
 async function authUser(req) {
   const s = sessionFromReq(req);
-  if (s && s.purpose === 'session' && s.uid) {
-    const { users } = await loadUsers();
-    const u = users.find(x => x.id === s.uid);
-    if (u && u.status === 'active' && !sessionPredatesPassword(s, u)) return u;
-    return null;
-  }
-  const { checkAuth } = require('./_lib.js');
-  if (checkAuth(req)) return { id: '__legacy__', email: '(legacy admin key)', name: 'Admin', role: 'owner', sites: ['*'], status: 'active' };
+  if (!(s && s.purpose === 'session' && s.uid)) return null;
+  const { users } = await loadUsers();
+  const u = users.find(x => x.id === s.uid);
+  if (u && u.status === 'active' && !sessionPredatesPassword(s, u)) return u;
   return null;
 }
-/* Does the request carry anything that could authenticate it? Pure CPU (an
+/* Does the request carry a session that could authenticate it? Pure CPU (an
    HMAC check), so endpoints call it BEFORE any GitHub read: anonymous traffic
    then cannot spend the shared GitHub budget. */
 function hasCredentials(req) {
   const { checkAuth } = require('./_lib.js');
-  return !!sessionFromReq(req) || checkAuth(req);
+  return checkAuth(req);
 }
 /* Endpoint auth in one call: { me } on success, else { code, error } to send.
    A users-store outage (rate limit, GitHub 5xx, token scope) is a 503, not a
@@ -389,19 +385,54 @@ async function readDraft(siteId, file) {
   if (r.status !== 200 || !r.json || typeof r.json.content !== 'string') return null;   /* missing, or a folder */
   return { data: parseB64Json(r.json.content), sha: r.json.sha };
 }
-async function writeDraft(siteId, file, data) {
+/* One read of what is stored for a draft now: { exists, sha, author, savedAt }.
+   A draft that no longer parses still reports its sha (so it can be replaced
+   or deleted), just without an author. unknown:true means GitHub did not give
+   a clean answer (not a 404), so the caller cannot rely on "no draft". */
+async function draftState(siteId, file) {
+  const r = await gh(draftPath(siteId, file) + `?ref=${USERS_BRANCH}`);
+  if (r.status === 404) return { exists: false, sha: null };
+  if (r.status !== 200 || !r.json || Array.isArray(r.json) || typeof r.json.sha !== 'string')
+    return { exists: false, sha: null, unknown: true };
+  let data = null;
+  try { data = typeof r.json.content === 'string' ? parseB64Json(r.json.content) : null; } catch (e) { /* keep the sha */ }
+  return { exists: true, sha: r.json.sha, author: (data && data.author) || null, savedAt: (data && data.savedAt) || null };
+}
+/* Write a draft. `expect` is the draft sha the editor last saw:
+     undefined   no check (an editor tab from before draftSha existed, or force)
+     null        the editor saw no draft
+     '<sha>'     the editor saw that version
+   With an expectation the write is a compare-and-swap done by GitHub: the PUT
+   carries the expected sha (or none), and GitHub refuses it if the draft has
+   changed. The usual save is therefore ONE call with no read-then-write race;
+   only a refused write reads the draft, to say who changed it.
+   Resolves { ok:true, sha } | { ok:false, conflict:{ sha, author, savedAt } } | { ok:false }. */
+async function writeDraft(siteId, file, data, expect) {
   const path = draftPath(siteId, file);
-  /* only the sha is needed to overwrite, so do not parse the old draft (a
-     corrupt one must not block saving a good one) */
-  const cur = await gh(path + `?ref=${USERS_BRANCH}`);
-  const body = {
-    message: 'cms: draft ' + siteId + '/' + file,
-    content: Buffer.from(JSON.stringify(data, null, 1)).toString('base64'),
-    branch: USERS_BRANCH,
+  const put = sha => {
+    const body = {
+      message: 'cms: draft ' + siteId + '/' + file,
+      content: Buffer.from(JSON.stringify(data, null, 1)).toString('base64'),
+      branch: USERS_BRANCH,
+    };
+    if (sha) body.sha = sha;
+    return gh(path, { method: 'PUT', body: JSON.stringify(body) });
   };
-  if (cur.status === 200 && cur.json && typeof cur.json.sha === 'string' && !Array.isArray(cur.json)) body.sha = cur.json.sha;
-  const r = await gh(path, { method: 'PUT', body: JSON.stringify(body) });
-  return r.status === 200 || r.status === 201;
+  const wrote = r => (r.status === 200 || r.status === 201) ? { ok: true, sha: (r.json && r.json.content && r.json.content.sha) || null } : null;
+
+  if (expect === undefined) {
+    /* no expectation: overwrite whatever is there (needs its sha) */
+    const cur = await draftState(siteId, file);
+    return wrote(await put(cur.exists ? cur.sha : null)) || { ok: false };
+  }
+  const first = wrote(await put(expect));
+  if (first) return first;
+  /* refused: see what is there now */
+  const cur = await draftState(siteId, file);
+  if (cur.exists && cur.sha !== expect) return { ok: false, conflict: cur };
+  /* the draft the editor saw was published or rejected meanwhile: nothing to overwrite */
+  if (!cur.exists && !cur.unknown && expect) return wrote(await put(null)) || { ok: false };
+  return { ok: false };
 }
 /* Every draft of a site with its parsed data: [{ file, sha, data }]. Walks
    subfolders (drafts/<site>/es/home.json -> file "es/home.json"). One
@@ -431,8 +462,10 @@ async function draftSites() {
   if (r.status !== 200 || !Array.isArray(r.json)) return null;
   return new Set(r.json.filter(f => f.type === 'dir').map(f => f.name));
 }
-/* knownSha (from a readDraft the caller already did) saves the lookup; if it
-   has gone stale the lookup runs after all */
+/* With knownSha (from a read the caller already did) only THAT version is
+   deleted, with no lookup: if GitHub refuses, the draft changed after the
+   caller read it, i.e. someone saved newer work, and it is left alone.
+   Without knownSha whatever draft is there is looked up and deleted. */
 async function deleteDraft(siteId, file, knownSha) {
   const path = draftPath(siteId, file);
   const del = sha => gh(path, {
@@ -441,7 +474,7 @@ async function deleteDraft(siteId, file, knownSha) {
   });
   if (knownSha) {
     const d = await del(knownSha);
-    if (d.status === 200 || d.status === 404) return true;
+    return d.status === 200 || d.status === 404;
   }
   const r = await gh(path + `?ref=${USERS_BRANCH}`);
   if (r.status !== 200 || !r.json || typeof r.json.sha !== 'string' || Array.isArray(r.json)) return true;
@@ -519,7 +552,7 @@ module.exports = {
   signToken, verifyToken, setSessionCookie, clearSessionCookie, sessionFromReq,
   authUser, hasCredentials, authed, isAdmin, who, publicUser, throttle, recordFail, recordOk,
   sendMail, inviteEmailHtml, setpwLink, readBody, validEmail, SESSION_DAYS,
-  siteAllowed, can, allowedWriteFiles, siteSchema, readDraft, writeDraft, listDrafts, collectDrafts, draftSites, deleteDraft,
+  siteAllowed, can, allowedWriteFiles, siteSchema, readDraft, draftState, writeDraft, listDrafts, collectDrafts, draftSites, deleteDraft,
   totpCheck, newTotpSecret, otpauthURI, newBackupCodes, hashBackup, useBackupCode,
   GOOGLE_CLIENT_ID, verifyGoogleToken,
 };

@@ -1,4 +1,4 @@
-// GET /api/auth/me -> the signed-in user (session cookie or legacy admin key)
+// GET /api/auth/me -> the signed-in user (session cookie)
 'use strict';
 const A = require('../_auth.js');
 

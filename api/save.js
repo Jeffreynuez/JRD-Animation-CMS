@@ -7,6 +7,20 @@ const A = require('./_auth.js');
    bytes (accented text is 2 bytes a character, CJK 3, emoji 4). */
 const MAX_BYTES = 900000;
 
+/* Two people editing the same file: the second save must not silently replace
+   the first person's draft. The editor sends the draftSha it last saw (from
+   load, or from its previous save); if the stored draft is now a different
+   version, answer 409 and let the person choose. */
+function draftConflict(res, file, c) {
+  const by = A.who(c.author);
+  const lead = by === 'an editor' ? 'An editor' : by;
+  return res.status(409).json({
+    code: 'draft-conflict',
+    error: lead + ' saved newer changes to ' + file + (c.savedAt ? ' at ' + c.savedAt : '') + '. Choose which version to keep.',
+    by, savedAt: c.savedAt || null,
+  });
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
   if (!A.hasCredentials(req)) return res.status(401).json({ error: 'unauthorized' });
@@ -23,11 +37,6 @@ module.exports = async (req, res) => {
   if (!canWrite(site, String(file))) return res.status(400).json({ error: 'file not editable' });
   if (String(file) === 'theme.json' && !A.can(me, 'canTheme'))
     return res.status(403).json({ error: 'Theme editing is not enabled for your account.' });
-  let allowed;
-  try { allowed = await A.allowedWriteFiles(me, site); }
-  catch (e) { return res.status(502).json({ error: 'Could not read the site schema to check your access. Try again in a moment.' }); }
-  if (allowed !== '*' && !allowed.has(String(file)))
-    return res.status(403).json({ error: 'Your account cannot edit this section. Ask your admin for access.' });
   if (!sha) return res.status(400).json({ error: 'missing sha (reload first)' });
   if (typeof content !== 'object' || content === null) return res.status(400).json({ error: 'content must be a JSON object' });
 
@@ -40,10 +49,28 @@ module.exports = async (req, res) => {
   }
   if (Buffer.byteLength(text, 'utf8') > MAX_BYTES) return res.status(400).json({ error: 'content too large' });
 
+  /* draft check: skipped entirely when the body has no draftSha key (an editor
+     tab opened before this existed) or when force:true ("keep mine") */
+  const expect = Object.prototype.hasOwnProperty.call(b, 'draftSha') && b.force !== true
+    ? (b.draftSha == null || b.draftSha === '' ? null : String(b.draftSha))
+    : undefined;
   /* draft saves: an explicit Save (draft:true, any user) or any save by a
      user without publish rights. Drafts live in the private users repo and
      never trigger a site rebuild. */
-  if (asDraft === true || !A.can(me, 'canPublish')) {
+  const toDraft = asDraft === true || !A.can(me, 'canPublish');
+
+  /* the section check and, for a publish, one read of the stored draft run
+     side by side. The draft read replaces the lookup the post-publish cleanup
+     used to do, so it costs no extra GitHub call. */
+  const [perm, state] = await Promise.all([
+    A.allowedWriteFiles(me, site).then(v => ({ v }), () => ({ err: true })),
+    toDraft ? null : A.draftState(site.id, String(file)).catch(() => ({ exists: false, sha: null, unknown: true })),
+  ]);
+  if (perm.err) return res.status(502).json({ error: 'Could not read the site schema to check your access. Try again in a moment.' });
+  if (perm.v !== '*' && !perm.v.has(String(file)))
+    return res.status(403).json({ error: 'Your account cannot edit this section. Ask your admin for access.' });
+
+  if (toDraft) {
     const draftData = {
       content, author: { id: me.id, email: me.email, name: me.name || '' },
       savedAt: new Date().toISOString(), baseSha: String(sha),
@@ -53,10 +80,13 @@ module.exports = async (req, res) => {
       const t = new Date(String(b.publishAt));
       if (!isNaN(t)) draftData.publishAt = t.toISOString();
     }
-    const ok = await A.writeDraft(site.id, String(file), draftData).catch(() => false);
-    if (!ok) return res.status(502).json({ error: 'could not store the draft' });
-    return res.status(200).json({ ok: true, draft: true, sha: String(sha) });
+    const w = await A.writeDraft(site.id, String(file), draftData, expect).catch(() => ({ ok: false }));
+    if (w.conflict) return draftConflict(res, String(file), w.conflict);
+    if (!w.ok) return res.status(502).json({ error: 'could not store the draft' });
+    return res.status(200).json({ ok: true, draft: true, sha: String(sha), draftSha: w.sha });
   }
+
+  if (expect !== undefined && state.exists && state.sha !== expect) return draftConflict(res, String(file), state);
 
   /* the commit names the editor account that published, so version history
      (and the planned audit log) can tell who changed what */
@@ -71,8 +101,11 @@ module.exports = async (req, res) => {
   const r = await gh(`/repos/${site.repo}/contents/data/${file}`, { method: 'PUT', body: JSON.stringify(body) });
   if (r.status === 409) return res.status(409).json({ error: 'conflict: the file changed since you loaded it. Reload and re-apply.' });
   if (r.status !== 200 && r.status !== 201) return res.status(502).json({ error: 'github write failed', status: r.status, detail: r.json && r.json.message });
-  /* published live: clear any saved draft so the editor stops shadowing the
-     live file with stale work-in-progress */
-  try { await A.deleteDraft(site.id, String(file)); } catch (e) { /* non-fatal */ }
-  res.status(200).json({ ok: true, sha: r.json.content && r.json.content.sha, commit: r.json.commit && r.json.commit.html_url });
+  /* published live: clear the draft so the editor stops shadowing the live
+     file with stale work-in-progress. Only the version read above is deleted;
+     a draft saved in the meantime is someone's newer work and stays. If that
+     read failed, an old-style editor still gets the old lookup-and-delete. */
+  if (state.exists) await A.deleteDraft(site.id, String(file), state.sha).catch(() => false);
+  else if (state.unknown && expect === undefined) await A.deleteDraft(site.id, String(file)).catch(() => false);
+  res.status(200).json({ ok: true, sha: r.json.content && r.json.content.sha, commit: r.json.commit && r.json.commit.html_url, draftSha: null });
 };
