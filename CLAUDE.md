@@ -65,8 +65,7 @@ the vars are set and the send was rejected. Worth splitting into two messages.
 rollback + audit log mined from the git commits every publish already creates.
 Then media library, soft delete, autosave, white-label, onboarding tour,
 mobile pass. Also open: per-user "sites at a glance" in the users list,
-"last active" column, retiring the legacy `ADMIN_PASSWORD` path once accounts
-are fully adopted, and adding the `item-remove` bridge handler to Proguild and
+"last active" column, and adding the `item-remove` bridge handler to Proguild and
 the JRD portfolio `main.js` (only GC-Windsor has it — live delete sync does
 nothing on the other sites until then).
 
@@ -138,15 +137,33 @@ Editor (admin.html):
 - Google Identity Services loads only for people who see the sign-in form.
 - Schema `kind:'lines'` blocks and lists of plain strings are supported.
 
-Still open (deliberately not done in the sweep):
-- Remove `ADMIN_PASSWORD` from the Vercel env once nobody uses the legacy key:
-  it is a full owner credential with no 2FA and no throttle.
-- Proguild's `_schema.json` has no `mediaFolder` (its assets are under
-  `proguild/`), so its media library shows nothing until one is added.
-- Two editors on one site overwrite each other's drafts; approve and the cron
-  sweep ignore a draft's `baseSha`.
-- Keystrokes typed in the second before a draft preloads are dropped with a
-  message; closing that fully needs a bridge `apply` that keeps the caret.
+Round 2 (2026-09-30), closing the sweep's open items:
+- Draft conflicts: load returns `draftSha`; the editor sends it on every
+  save (null when there is no draft). A different stored draft answers 409
+  `{code:'draft-conflict', by, savedAt}` and the editor asks Keep mine
+  (resend with `force:true`), Load theirs, or Cancel; autosave never asks, it
+  flags the file (`st.conflict`) and skips it. A body with NO `draftSha` key
+  (an old tab) skips the check. Draft writes are compare-and-swap: the PUT
+  carries the expected sha, so the usual save is one GitHub call.
+  `deleteDraft(site, file, sha)` deletes only that version; a newer draft
+  saved meanwhile is someone's work and stays.
+- Stale drafts: approve answers 409 `{code:'stale'}` when the live file
+  changed after the draft was made (`baseSha`), and publishes with
+  `force:true`. The cron sweep never publishes a stale schedule; it lists it
+  in `held`, and the editor tells the person to publish by hand.
+- The preview frame loads after the draft preload (or 2.5 s), so a draft is
+  painted when the page reports ready and cannot be typed over.
+- The legacy admin key is gone as a credential: `checkAuth` accepts only a
+  session and the editor no longer sends `x-admin-key`. `ADMIN_PASSWORD` is
+  used only by the first-run owner bootstrap (`bootstrapKeyOk`, while
+  users.json has no users), so the env var is harmless and can be deleted.
+- Media library with no `mediaFolder`: the whole cloud is listed only when no
+  other registry site uses the same cloud (the JRD Portfolio's own
+  dfmofrlt3); on the shared client cloud it stays empty with a note.
+  Proguild's schema now names `mediaFolder: "proguild"`.
+
+Still open: the jrdanimation.com schema has no `mediaFolder` (it keeps almost
+no media on Cloudinary, so its library is simply empty).
 
 ## Deploy workflow (this is the part people break)
 
@@ -282,9 +299,8 @@ Still open (deliberately not done in the sweep):
   granting an export is always an explicit tick, never inherited from a role.
 - Newly invited users have `sites: []` — access to nothing until the admin
   grants it in their Access sheet. This is intentional; don't "fix" it.
-- The legacy `x-admin-key` header still authenticates as a synthetic owner
-  (`id: '__legacy__'`). The admin UI sends it alongside the session cookie;
-  several fetches rely on either working.
+- There is no legacy `x-admin-key` credential any more (removed 2026-09-30).
+  Every API call authenticates with the session cookie alone.
 - 2FA: TOTP secrets must never leave the page or hit third-party services
   (that's why the QR is generated locally). `hotp()` is verified against the
   RFC-4226 test vectors — if you touch it, re-verify.
