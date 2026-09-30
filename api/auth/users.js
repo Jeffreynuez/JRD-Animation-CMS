@@ -49,6 +49,8 @@ module.exports = async (req, res) => {
   if (!target) return res.status(404).json({ error: 'User not found.' });
 
   if (action === 'resend') {
+    /* a reset link signs its holder in, so minting one for an owner is an owner's call */
+    if (target.role === 'owner' && me.role !== 'owner') return res.status(403).json({ error: 'Only the owner can send an owner a reset link.' });
     const isReset = target.status === 'active';
     const token = A.signToken({ uid: target.id, purpose: isReset ? 'reset' : 'invite' }, isReset ? 3600 : 7 * 86400);
     const link = A.setpwLink(token);

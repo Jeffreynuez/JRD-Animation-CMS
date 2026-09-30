@@ -5,6 +5,15 @@
 'use strict';
 const A = require('../_auth.js');
 
+/* Wrong codes are counted per ACCOUNT as well as per email+IP, so neither a new
+   IP nor a password-only request resets the count. 5 misses lock 10 min. */
+const totpKey = u => 'totp|' + u.id;
+const TOTP_LOCKED = { error: 'Too many codes tried. Try again in 10 minutes.', totp: true };
+
+/* A throwaway hash, so an unknown email costs the same scrypt time as a real
+   one and response time does not reveal which emails have accounts. */
+const DUMMY_HASH = A.hashPassword(require('crypto').randomBytes(16).toString('hex'));
+
 /* Sign in with a Google ID token. Deliberately a query mode on this file:
    api/ is at Vercel Hobby's 12-function ceiling, so no new endpoint may exist.
    Two rules make this safe to expose:
@@ -40,10 +49,14 @@ async function googleLogin(req, res) {
   /* two-factor: identical rules to the password path, Google does not skip it */
   if (u.totp && u.totp.enabled) {
     if (!b.code && !b.backup) return res.status(200).json({ totp: true });
+    if (A.throttle(totpKey(u))) return res.status(429).json(TOTP_LOCKED);
     const okCode = b.code && A.totpCheck(u.totp.secret, b.code);
     const okBackup = b.backup && A.useBackupCode(u, b.backup);
-    if (!okCode && !okBackup)
+    if (!okCode && !okBackup) {
+      A.recordFail(totpKey(u));
       return res.status(401).json({ error: b.backup ? 'Backup code not recognized (each works once).' : 'That code did not match.', totp: true });
+    }
+    A.recordOk(totpKey(u));
     if (okBackup) {
       try { await A.saveUsers(store.users, store.sha, 'cms: backup code used by ' + u.email); } catch (e) { /* non-fatal */ }
     }
@@ -96,19 +109,24 @@ module.exports = async (req, res) => {
   /* ---- normal login ---- */
   await new Promise(r => setTimeout(r, 250)); // flatten timing
   const u = store.users.find(x => String(x.email).toLowerCase() === email);
-  if (!u || u.status !== 'active' || !A.verifyPassword(password, u.hash)) {
+  /* always run scrypt, against a dummy hash when there is no usable account */
+  const okPw = A.verifyPassword(password, (u && u.hash) || DUMMY_HASH);
+  if (!u || u.status !== 'active' || !u.hash || !okPw) {
     A.recordFail(tKey);
     return res.status(401).json({ error: 'Invalid email or password.' });
   }
   /* ---- two-factor ---- */
   if (u.totp && u.totp.enabled) {
-    if (!b.code && !b.backup) { A.recordOk(tKey); return res.status(200).json({ totp: true }); }
+    /* the password step alone is not a success: it must not clear the count */
+    if (!b.code && !b.backup) return res.status(200).json({ totp: true });
+    if (A.throttle(totpKey(u))) return res.status(429).json(TOTP_LOCKED);
     const okCode = b.code && A.totpCheck(u.totp.secret, b.code);
     const okBackup = b.backup && A.useBackupCode(u, b.backup);
     if (!okCode && !okBackup) {
-      A.recordFail(tKey);
+      A.recordFail(tKey); A.recordFail(totpKey(u));
       return res.status(401).json({ error: b.backup ? 'Backup code not recognized (each works once).' : 'That code did not match.' , totp: true });
     }
+    A.recordOk(totpKey(u));
     if (okBackup) {
       try { await A.saveUsers(store.users, store.sha, 'cms: backup code used by ' + u.email); } catch (e) { /* non-fatal */ }
     }

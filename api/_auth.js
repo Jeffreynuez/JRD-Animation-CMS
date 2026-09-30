@@ -17,7 +17,7 @@
 //                      ID token the browser gets, we do not run a redirect flow.
 'use strict';
 const crypto = require('crypto');
-const { gh } = require('./_lib.js');
+const { gh, parseB64Json, FILE_RE, SLUG_RE } = require('./_lib.js');
 
 const USERS_REPO = process.env.USERS_REPO || '';
 const USERS_BRANCH = process.env.USERS_BRANCH || 'main';
@@ -40,7 +40,7 @@ function configured(res) {
 async function loadUsers() {
   const r = await gh(`/repos/${USERS_REPO}/contents/${USERS_PATH}?ref=${USERS_BRANCH}`);
   if (r.status === 200) {
-    const json = JSON.parse(Buffer.from(r.json.content, 'base64').toString('utf8'));
+    const json = parseB64Json(r.json.content);
     return { users: json.users || [], sha: r.json.sha };
   }
   if (r.status === 404) return { users: [], sha: null };
@@ -111,6 +111,12 @@ function sessionFromReq(req) {
   return m ? verifyToken(m[1]) : null;
 }
 
+/* A session minted before the account's last password set is void, so a
+   password reset (or a set after an invite) signs out every older cookie.
+   Compared in whole seconds: the cookie set-password issues right after the
+   change carries the same second and stays valid. */
+const sessionPredatesPassword = (s, u) =>
+  !!u.passwordSetAt && Number(s.iat) < Math.floor(Date.parse(u.passwordSetAt) / 1000);
 /* Resolve the calling user. Supports the legacy x-admin-key during migration
    (it acts as the owner). Returns null when unauthenticated. */
 async function authUser(req) {
@@ -118,14 +124,34 @@ async function authUser(req) {
   if (s && s.purpose === 'session' && s.uid) {
     const { users } = await loadUsers();
     const u = users.find(x => x.id === s.uid);
-    if (u && u.status === 'active') return u;
+    if (u && u.status === 'active' && !sessionPredatesPassword(s, u)) return u;
     return null;
   }
   const { checkAuth } = require('./_lib.js');
   if (checkAuth(req)) return { id: '__legacy__', email: '(legacy admin key)', name: 'Admin', role: 'owner', sites: ['*'], status: 'active' };
   return null;
 }
+/* Does the request carry anything that could authenticate it? Pure CPU (an
+   HMAC check), so endpoints call it BEFORE any GitHub read: anonymous traffic
+   then cannot spend the shared GitHub budget. */
+function hasCredentials(req) {
+  const { checkAuth } = require('./_lib.js');
+  return !!sessionFromReq(req) || checkAuth(req);
+}
+/* Endpoint auth in one call: { me } on success, else { code, error } to send.
+   A users-store outage (rate limit, GitHub 5xx, token scope) is a 503, not a
+   401, so the admin does not treat it as a sign-out and reload the page. */
+async function authed(req) {
+  if (!hasCredentials(req)) return { code: 401, error: 'unauthorized' };
+  let me;
+  try { me = await authUser(req); }
+  catch (e) { return { code: 503, error: 'The account store is unavailable right now. Try again in a moment.' }; }
+  return me ? { me } : { code: 401, error: 'unauthorized' };
+}
 const isAdmin = u => !!u && (u.role === 'owner' || u.role === 'admin');
+/* how a commit names the editor who made it. A display name, never the email:
+   client site repos can be public, and commit messages are permanent. */
+const who = u => String((u && (u.name || (u.email ? String(u.email).split('@')[0] : ''))) || 'an editor').replace(/[\r\n]+/g, ' ').slice(0, 60);
 const publicUser = u => ({ id: u.id, email: u.email, name: u.name || '', role: u.role, sites: u.sites || [], perms: u.perms || {}, caps: u.caps || {}, status: u.status, twoFactor: !!(u.totp && u.totp.enabled), totpRequired: !!u.totpRequired, createdAt: u.createdAt });
 
 /* ---------- in-memory login throttle (best effort per lambda instance) ---------- */
@@ -320,16 +346,17 @@ function can(u, cap) {
   if (OPT_IN_CAPS.indexOf(cap) >= 0) return c[cap] === true;
   return c[cap] !== false;
 }
-/* section grants -> the data files they map to (per the site's own schema) */
-const schemaCache = new Map();
+/* section grants -> the data files they map to (per the site's own schema).
+   No TTL cache any more: gh() revalidates with the ETag, so an unchanged
+   schema costs a 304 (free against the budget) and a schema change applies to
+   permissions on the very next request. A failed read throws rather than
+   passing for "no sections", so callers can say so instead of refusing edits. */
 async function siteSchema(site) {
-  const hit = schemaCache.get(site.id);
-  if (hit && Date.now() - hit.t < 60000) return hit.schema;
   const ref = site.branch ? '?ref=' + encodeURIComponent(site.branch) : '';
   const r = await gh(`/repos/${site.repo}/contents/data/${site.schema || '_schema.json'}${ref}`);
-  const schema = r.status === 200 ? JSON.parse(Buffer.from(r.json.content, 'base64').toString('utf8')) : { sections: [] };
-  schemaCache.set(site.id, { t: Date.now(), schema });
-  return schema;
+  if (r.status !== 200 || !r.json || typeof r.json.content !== 'string')
+    throw new Error('could not read the site schema (' + r.status + ')');
+  return parseB64Json(r.json.content);
 }
 const USER_ALWAYS_WRITE = ['styles.json'];  // inline text styling rides along with any grant
 async function allowedWriteFiles(u, site) {
@@ -347,40 +374,78 @@ async function allowedWriteFiles(u, site) {
   return set;
 }
 
-/* ---------- drafts (live in the private users repo - never trigger a site rebuild) ---------- */
+/* ---------- drafts (live in the private users repo - never trigger a site rebuild) ----------
+   A draft of data/<file> lives at drafts/<siteId>/<file>, so data files in a
+   subfolder (Inca's es/pages.json) get a subfolder under drafts/ as well.
+   Every path is checked here, whatever the caller already checked: the site
+   id must be a registry slug and the file a registry-style name, so nothing
+   can walk out of drafts/ into the rest of the private repo (users.json). */
+function draftPath(siteId, file) {
+  if (!SLUG_RE.test(String(siteId)) || !FILE_RE.test(String(file))) throw new Error('bad draft path');
+  return `/repos/${USERS_REPO}/contents/drafts/${siteId}/${file}`;
+}
 async function readDraft(siteId, file) {
-  const r = await gh(`/repos/${USERS_REPO}/contents/drafts/${siteId}/${file}?ref=${USERS_BRANCH}`);
-  if (r.status !== 200) return null;
-  return { data: JSON.parse(Buffer.from(r.json.content, 'base64').toString('utf8')), sha: r.json.sha };
+  const r = await gh(draftPath(siteId, file) + `?ref=${USERS_BRANCH}`);
+  if (r.status !== 200 || !r.json || typeof r.json.content !== 'string') return null;   /* missing, or a folder */
+  return { data: parseB64Json(r.json.content), sha: r.json.sha };
 }
 async function writeDraft(siteId, file, data) {
-  const cur = await readDraft(siteId, file);
+  const path = draftPath(siteId, file);
+  /* only the sha is needed to overwrite, so do not parse the old draft (a
+     corrupt one must not block saving a good one) */
+  const cur = await gh(path + `?ref=${USERS_BRANCH}`);
   const body = {
     message: 'cms: draft ' + siteId + '/' + file,
     content: Buffer.from(JSON.stringify(data, null, 1)).toString('base64'),
     branch: USERS_BRANCH,
   };
-  if (cur) body.sha = cur.sha;
-  const r = await gh(`/repos/${USERS_REPO}/contents/drafts/${siteId}/${file}`, { method: 'PUT', body: JSON.stringify(body) });
+  if (cur.status === 200 && cur.json && typeof cur.json.sha === 'string' && !Array.isArray(cur.json)) body.sha = cur.json.sha;
+  const r = await gh(path, { method: 'PUT', body: JSON.stringify(body) });
   return r.status === 200 || r.status === 201;
 }
-async function listDrafts(siteId) {
-  const r = await gh(`/repos/${USERS_REPO}/contents/drafts/${siteId}?ref=${USERS_BRANCH}`);
+/* Every draft of a site with its parsed data: [{ file, sha, data }]. Walks
+   subfolders (drafts/<site>/es/home.json -> file "es/home.json"). One
+   unreadable draft is skipped, never allowed to hide the rest of the queue. */
+async function collectDrafts(siteId, sub, depth) {
+  if (!SLUG_RE.test(String(siteId))) return [];
+  const r = await gh(`/repos/${USERS_REPO}/contents/drafts/${siteId}${sub ? '/' + sub : ''}?ref=${USERS_BRANCH}`);
   if (r.status !== 200 || !Array.isArray(r.json)) return [];
-  const out = [];
-  for (const f of r.json) {
-    const d = await readDraft(siteId, f.name);
-    if (d) out.push({ file: f.name, author: d.data.author, savedAt: d.data.savedAt, publishAt: d.data.publishAt || null });
-  }
-  return out;
+  /* entries are read side by side; the result keeps GitHub's listing order */
+  const parts = await Promise.all(r.json.map(async f => {
+    const rel = sub ? sub + '/' + f.name : f.name;
+    if (f.type === 'dir') return (depth || 0) < 4 ? collectDrafts(siteId, rel, (depth || 0) + 1) : [];
+    if (f.type !== 'file') return [];
+    const d = await readDraft(siteId, rel).catch(() => null);
+    return d && d.data ? [{ file: rel, sha: d.sha, data: d.data }] : [];
+  }));
+  return [].concat(...parts);
 }
-async function deleteDraft(siteId, file) {
-  const r = await gh(`/repos/${USERS_REPO}/contents/drafts/${siteId}/${file}?ref=${USERS_BRANCH}`);
-  if (r.status !== 200) return true;
-  const d = await gh(`/repos/${USERS_REPO}/contents/drafts/${siteId}/${file}`, {
+async function listDrafts(siteId) {
+  return (await collectDrafts(siteId)).map(d => ({ file: d.file, author: d.data.author, savedAt: d.data.savedAt, publishAt: d.data.publishAt || null }));
+}
+/* which sites have a drafts/ folder at all: one listing instead of one per
+   site. null means "could not tell", so the caller checks every site. */
+async function draftSites() {
+  const r = await gh(`/repos/${USERS_REPO}/contents/drafts?ref=${USERS_BRANCH}`);
+  if (r.status === 404) return new Set();
+  if (r.status !== 200 || !Array.isArray(r.json)) return null;
+  return new Set(r.json.filter(f => f.type === 'dir').map(f => f.name));
+}
+/* knownSha (from a readDraft the caller already did) saves the lookup; if it
+   has gone stale the lookup runs after all */
+async function deleteDraft(siteId, file, knownSha) {
+  const path = draftPath(siteId, file);
+  const del = sha => gh(path, {
     method: 'DELETE',
-    body: JSON.stringify({ message: 'cms: clear draft ' + siteId + '/' + file, sha: r.json.sha, branch: USERS_BRANCH }),
+    body: JSON.stringify({ message: 'cms: clear draft ' + siteId + '/' + file, sha, branch: USERS_BRANCH }),
   });
+  if (knownSha) {
+    const d = await del(knownSha);
+    if (d.status === 200 || d.status === 404) return true;
+  }
+  const r = await gh(path + `?ref=${USERS_BRANCH}`);
+  if (r.status !== 200 || !r.json || typeof r.json.sha !== 'string' || Array.isArray(r.json)) return true;
+  const d = await del(r.json.sha);
   return d.status === 200;
 }
 
@@ -439,19 +504,22 @@ function useBackupCode(u, code) {
   return true;
 }
 
+/* Only a body Vercel already parsed as application/json counts. A string body
+   means text/plain (or similar), which a cross-site form can send without a
+   CORS preflight, so it is ignored rather than parsed. The admin always sends
+   application/json. */
 function readBody(req) {
-  let b = req.body;
-  if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = {}; } }
-  return b || {};
+  const b = req.body;
+  return b && typeof b === 'object' && !Array.isArray(b) ? b : {};
 }
 const validEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || '').trim());
 
 module.exports = {
   configured, loadUsers, saveUsers, hashPassword, verifyPassword,
   signToken, verifyToken, setSessionCookie, clearSessionCookie, sessionFromReq,
-  authUser, isAdmin, publicUser, throttle, recordFail, recordOk,
+  authUser, hasCredentials, authed, isAdmin, who, publicUser, throttle, recordFail, recordOk,
   sendMail, inviteEmailHtml, setpwLink, readBody, validEmail, SESSION_DAYS,
-  siteAllowed, can, allowedWriteFiles, siteSchema, readDraft, writeDraft, listDrafts, deleteDraft,
+  siteAllowed, can, allowedWriteFiles, siteSchema, readDraft, writeDraft, listDrafts, collectDrafts, draftSites, deleteDraft,
   totpCheck, newTotpSecret, otpauthURI, newBackupCodes, hashBackup, useBackupCode,
   GOOGLE_CLIENT_ID, verifyGoogleToken,
 };

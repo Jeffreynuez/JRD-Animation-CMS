@@ -2,18 +2,30 @@
 const { getSite, canWrite, gh } = require('./_lib.js');
 const A = require('./_auth.js');
 
+/* GitHub's contents API returns a file's content inline only up to 1 MiB, so a
+   bigger data file could be saved but never loaded again. Measured in UTF-8
+   bytes (accented text is 2 bytes a character, CJK 3, emoji 4). */
+const MAX_BYTES = 900000;
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
-  const me = await A.authUser(req).catch(() => null);
-  if (!me) return res.status(401).json({ error: 'unauthorized' });
-  const { file, content, sha, message, site: siteId, draft: asDraft } = req.body || {};
-  const site = await getSite(siteId ? String(siteId) : '');
+  if (!A.hasCredentials(req)) return res.status(401).json({ error: 'unauthorized' });
+  const b = A.readBody(req);
+  const { file, content, sha, message, site: siteId, draft: asDraft } = b;
+  const [auth, site] = await Promise.all([
+    A.authed(req),
+    getSite(siteId ? String(siteId) : '').catch(() => null),
+  ]);
+  if (!auth.me) return res.status(auth.code).json({ error: auth.error });
+  const me = auth.me;
   if (!site) return res.status(400).json({ error: 'unknown site' });
   if (!A.siteAllowed(me, site.id)) return res.status(403).json({ error: 'Your account does not have access to this site.' });
   if (!canWrite(site, String(file))) return res.status(400).json({ error: 'file not editable' });
   if (String(file) === 'theme.json' && !A.can(me, 'canTheme'))
     return res.status(403).json({ error: 'Theme editing is not enabled for your account.' });
-  const allowed = await A.allowedWriteFiles(me, site);
+  let allowed;
+  try { allowed = await A.allowedWriteFiles(me, site); }
+  catch (e) { return res.status(502).json({ error: 'Could not read the site schema to check your access. Try again in a moment.' }); }
   if (allowed !== '*' && !allowed.has(String(file)))
     return res.status(403).json({ error: 'Your account cannot edit this section. Ask your admin for access.' });
   if (!sha) return res.status(400).json({ error: 'missing sha (reload first)' });
@@ -26,7 +38,7 @@ module.exports = async (req, res) => {
   } catch (e) {
     return res.status(400).json({ error: 'content not serializable' });
   }
-  if (text.length > 900000) return res.status(400).json({ error: 'content too large' });
+  if (Buffer.byteLength(text, 'utf8') > MAX_BYTES) return res.status(400).json({ error: 'content too large' });
 
   /* draft saves: an explicit Save (draft:true, any user) or any save by a
      user without publish rights. Drafts live in the private users repo and
@@ -36,26 +48,28 @@ module.exports = async (req, res) => {
       content, author: { id: me.id, email: me.email, name: me.name || '' },
       savedAt: new Date().toISOString(), baseSha: String(sha),
     };
-    /* schedule (publishers only): api/cron.js publishes it when the time comes */
-    if (req.body.publishAt && A.can(me, 'canPublish')) {
-      const t = new Date(String(req.body.publishAt));
+    /* schedule (publishers only): the drafts.js ?cron=1 sweep publishes it when the time comes */
+    if (b.publishAt && A.can(me, 'canPublish')) {
+      const t = new Date(String(b.publishAt));
       if (!isNaN(t)) draftData.publishAt = t.toISOString();
     }
-    const ok = await A.writeDraft(site.id, String(file), draftData);
+    const ok = await A.writeDraft(site.id, String(file), draftData).catch(() => false);
     if (!ok) return res.status(502).json({ error: 'could not store the draft' });
     return res.status(200).json({ ok: true, draft: true, sha: String(sha) });
   }
 
+  /* the commit names the editor account that published, so version history
+     (and the planned audit log) can tell who changed what */
   const body = {
     message: String(message || `cms: update ${file}`).slice(0, 200) +
-      '\n\nCommitted via /admin CMS\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>',
+      '\n\nPublished in the JRD editor by ' + A.who(me),
     content: Buffer.from(text, 'utf8').toString('base64'),
     sha: String(sha),
   };
   if (site.branch) body.branch = site.branch;
 
   const r = await gh(`/repos/${site.repo}/contents/data/${file}`, { method: 'PUT', body: JSON.stringify(body) });
-  if (r.status === 409) return res.status(409).json({ error: 'conflict — file changed since load; reload and re-apply' });
+  if (r.status === 409) return res.status(409).json({ error: 'conflict: the file changed since you loaded it. Reload and re-apply.' });
   if (r.status !== 200 && r.status !== 201) return res.status(502).json({ error: 'github write failed', status: r.status, detail: r.json && r.json.message });
   /* published live: clear any saved draft so the editor stops shadowing the
      live file with stale work-in-progress */

@@ -1,5 +1,6 @@
 // Two-factor enrollment & management.
 //   POST {action:'setup'}                    -> new pending secret + otpauth:// URI
+//        (when 2FA is already on, replacing it needs a current code or backup code)
 //   POST {action:'confirm', code}            -> verify code, enable 2FA, return backup codes (shown ONCE)
 //   POST {action:'disable', code|backup}     -> turn 2FA off for yourself
 // Auth: a normal session, OR a preToken (purpose 'totp-enroll') issued by login
@@ -27,9 +28,24 @@ module.exports = async (req, res) => {
   const u = store.users.find(x => x.id === uid);
   if (!u) return res.status(404).json({ error: 'account not found' });
 
+  /* checking a code against the enabled secret: same per-account lock as login */
+  const tKey = 'totp|' + u.id;
+  const currentCodeOk = () => (b.code && A.totpCheck(u.totp.secret, b.code)) || (b.backup && A.useBackupCode(u, b.backup));
+
   if (b.action === 'setup') {
+    /* replacing a working 2FA must prove the current one, or a stolen session
+       could swap in its own authenticator and lock the owner out */
+    const rotating = !!(u.totp && u.totp.enabled);
+    if (rotating) {
+      if (A.throttle(tKey)) return res.status(429).json({ error: 'Too many codes tried. Try again in 10 minutes.' });
+      if (!currentCodeOk()) {
+        A.recordFail(tKey);
+        return res.status(401).json({ error: 'Two-factor is already on. Enter a current authenticator or backup code to replace it.' });
+      }
+      A.recordOk(tKey);
+    }
     const secret = A.newTotpSecret();
-    u.totp = Object.assign({}, u.totp, { pending: secret });
+    u.totp = Object.assign({}, u.totp, { pending: secret, rotating });
     try { await A.saveUsers(store.users, store.sha, 'cms: 2fa setup started for ' + u.email); }
     catch (e) { return res.status(502).json({ error: e.message }); }
     return res.status(200).json({ secret, otpauth: A.otpauthURI(u.email, secret) });
@@ -38,6 +54,8 @@ module.exports = async (req, res) => {
   if (b.action === 'confirm') {
     const pending = u.totp && u.totp.pending;
     if (!pending) return res.status(400).json({ error: 'No setup in progress - start again.' });
+    /* with 2FA on, only a pending secret created by a code-checked setup counts */
+    if (u.totp.enabled && u.totp.rotating !== true) return res.status(400).json({ error: 'No setup in progress - start again.' });
     if (!A.totpCheck(pending, b.code)) return res.status(401).json({ error: 'That code did not match. Check the app and try again.' });
     const codes = A.newBackupCodes();
     u.totp = { enabled: true, secret: pending, backup: codes.map(A.hashBackup), enabledAt: new Date().toISOString() };
@@ -49,9 +67,9 @@ module.exports = async (req, res) => {
 
   if (b.action === 'disable') {
     if (!(u.totp && u.totp.enabled)) return res.status(400).json({ error: '2FA is not enabled.' });
-    const okCode = b.code && A.totpCheck(u.totp.secret, b.code);
-    const okBackup = b.backup && A.useBackupCode(u, b.backup);
-    if (!okCode && !okBackup) return res.status(401).json({ error: 'Enter a valid authenticator or backup code to disable 2FA.' });
+    if (A.throttle(tKey)) return res.status(429).json({ error: 'Too many codes tried. Try again in 10 minutes.' });
+    if (!currentCodeOk()) { A.recordFail(tKey); return res.status(401).json({ error: 'Enter a valid authenticator or backup code to disable 2FA.' }); }
+    A.recordOk(tKey);
     if (u.totpRequired) return res.status(403).json({ error: 'Your admin requires 2FA on this account. Ask them to lift the requirement first.' });
     delete u.totp;
     try { await A.saveUsers(store.users, store.sha, 'cms: 2fa disabled for ' + u.email); }
