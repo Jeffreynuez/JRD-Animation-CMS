@@ -318,6 +318,8 @@ module.exports = async (req, res) => {
      is caught instead of overwritten. */
   const draftSha = (draft && draft.sha) || null;
   if (draft && draft.data && draft.data.content)
-    return res.status(200).json({ content: draft.data.content, sha: r.json.sha, draft: true, draftAt: draft.data.savedAt || null, publishAt: draft.data.publishAt || null, draftBy: (draft.data.author && draft.data.author.email) || null, draftSha });
+    /* live: the published content the page in the preview shows, so the editor
+       can repaint just the difference (a reordered list, a new image) */
+    return res.status(200).json({ content: draft.data.content, live: content, sha: r.json.sha, draft: true, draftAt: draft.data.savedAt || null, publishAt: draft.data.publishAt || null, draftBy: (draft.data.author && draft.data.author.email) || null, draftSha });
   res.status(200).json({ content, sha: r.json.sha, draftSha });
 };

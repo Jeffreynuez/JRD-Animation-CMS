@@ -37,6 +37,8 @@ header .msg{font-size:12px;color:#94a3b8;max-width:340px;flex:3 1 auto;min-width
 .tmenu .sep{height:1px;background:#1e293b;margin:5px 3px}
 .tmenu .mhint{display:block;margin-top:2px;font:400 11px system-ui;color:#64748b}
 #moreBtn{position:relative}
+#save{position:relative}
+#save.has-dot::after{content:'';position:absolute;top:-4px;right:-4px;width:10px;height:10px;border-radius:50%;background:#f59e0b;border:2px solid #0f172a}
 #moreBtn.has-dot::after{content:'';position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--cyan-d)}
 #saveDraftBtn.warn{border-color:#f59e0b;color:#fbbf24}
 @media (max-width:1620px){header .lbl2{display:none}}
@@ -483,12 +485,20 @@ let SECTIONS=[];   // compiled runtime schema for the currently selected site
 let VPAGES=[];     // [[file,label],...] for the page dropdown, from schema.pages
 let SITE_CLOUD=''; // this site's Cloudinary cloud   (from _schema.json cloudName)
 let SITE_FOLDER='';// this site's Cloudinary folder  (from _schema.json mediaFolder)
+/* What this site's page bridge (assets/js/main.js, ?edit=1) understands beyond
+   text: the schema's "bridge" list names the messages it mirrors live. With
+   item-field + item-media the editor can repaint list items in place, so a
+   reorder in Manage content (or a saved draft after a reload) shows on the
+   page; without them only text updates live. */
+let BRIDGE=new Set();
+const itemsLive=()=>BRIDGE.has('item-field')&&BRIDGE.has('item-media');
 const tplStr=(s,item)=>String(s).replace(/\{(\w+)\}/g,(_,k)=>(item[k]==null?'':item[k]));
 function compileSchema(json){
  VPAGES=Array.isArray(json.pages)?json.pages:[];
  /* each managed site declares its own Cloudinary cloud + media folder */
  SITE_CLOUD=json.cloudName||'';
  SITE_FOLDER=json.mediaFolder||'';
+ BRIDGE=new Set(Array.isArray(json.bridge)?json.bridge.map(String):[]);
  /* always reset: a schema without cloudName must not inherit the previous site's cloud */
  CDNP='https://res.cloudinary.com/'+(json.cloudName||'dfmofrlt3')+'/';
  SECTIONS=(json.sections||[]).map(s=>{
@@ -545,7 +555,12 @@ async function loadFile(fn){
  /* draftSha: the version of the stored draft this copy is based on (null when
     there is none). Every save sends it back so a newer draft saved by someone
     else in the meantime is caught instead of silently overwritten. */
- files[fn]={content:r.json.content,sha:r.json.sha,dirty:false,draft:!!r.json.draft,publishAt:r.json.publishAt||null,draftSha:r.json.draftSha||null,conflict:false};
+ /* live: the published content this copy started from. The page in the frame
+    shows it, so repainting the difference live -> content brings the page up
+    to the editor (a saved draft, a reorder). null when the server did not say. */
+ const live=r.json.draft?(r.json.live!==undefined?r.json.live:null):JSON.parse(JSON.stringify(r.json.content));
+ files[fn]={content:r.json.content,sha:r.json.sha,dirty:false,draft:!!r.json.draft,publishAt:r.json.publishAt||null,draftSha:r.json.draftSha||null,conflict:false,live};
+ updateSaveHint();
  if(r.json.publishAt)setMsg('Restored your saved draft of '+fn+' (scheduled to go live '+new Date(r.json.publishAt).toLocaleString()+').');
  else if(r.json.draft)setMsg('Restored your saved draft of '+fn+'. Publish when ready.');
  /* a freshly loaded draft differs from the published page in the frame, so paint
@@ -1036,6 +1051,14 @@ function renderBlocks(){
     const o={};b.fields.forEach(fd=>{o[fd.k]=fd.type===T.BOOL?false:(fd.type===T.LINES||fd.type===T.MEDLINES||fd.type===T.REELS?[]:(fd.type===T.SEL?(fd.opts||[''])[0]:''));});return o;};
    let openIdx=-1;
    let dragFrom=null;
+   /* a reorder: the page repaints the slots whose item changed when its bridge
+      mirrors list items; otherwise say plainly when it will show */
+   const snapArr=()=>itemsLive()?JSON.parse(JSON.stringify(arr)):null;
+   const moved=bef=>{
+    markDirty();draw();
+    if(bef){try{histDiffApply(bf,bef,arr,b.path);}catch(e){}setMsg('Moved. Publish to put the new order live.','ok');}
+    else setMsg('Moved. The new order shows on the page after you Publish.');
+   };
    const draw=()=>{
     listEl.innerHTML='';const q=search.value.toLowerCase();
     count.textContent=arr.length+' items';
@@ -1054,9 +1077,10 @@ function renderBlocks(){
      const grow=document.createElement('span');grow.className='grow';headEl.appendChild(grow);
      const btns=document.createElement('div');btns.className='rowbtns';
      const mk=(txt,fn,cls)=>{const x=document.createElement('button');x.textContent=txt;if(cls)x.className=cls;x.onclick=e=>{e.stopPropagation();fn();};btns.appendChild(x);};
-     mk('↑',()=>{if(idx>0){[arr[idx-1],arr[idx]]=[arr[idx],arr[idx-1]];markDirty();draw();}});
-     mk('↓',()=>{if(idx<arr.length-1){[arr[idx+1],arr[idx]]=[arr[idx],arr[idx+1]];markDirty();draw();}});
-     mk('Duplicate',()=>{arr.splice(idx+1,0,JSON.parse(JSON.stringify(arr[idx])));markDirty();draw();});
+     mk('↑',()=>{if(idx>0){const bef=snapArr();[arr[idx-1],arr[idx]]=[arr[idx],arr[idx-1]];moved(bef);}});
+     mk('↓',()=>{if(idx<arr.length-1){const bef=snapArr();[arr[idx+1],arr[idx]]=[arr[idx],arr[idx+1]];moved(bef);}});
+     mk('Duplicate',()=>{arr.splice(idx+1,0,JSON.parse(JSON.stringify(arr[idx])));markDirty();draw();
+      setMsg('Duplicated. The copy shows on the page after you Publish.');});
      if(canDo('canDelete'))mk('Delete',()=>{if(confirm('Delete "'+t+'"?')){arr.splice(idx,1);vItemRemove(bf,b.path,idx);markDirty();draw();}},'danger');
      headEl.appendChild(btns);
      headEl.onclick=e=>{if(e.target.tagName==='BUTTON')return;card.classList.toggle('open');};
@@ -1064,7 +1088,7 @@ function renderBlocks(){
      headEl.addEventListener('dragend',()=>{dragFrom=null;card.style.opacity='';[].forEach.call(listEl.children,c=>{c.style.boxShadow='';});});
      card.addEventListener('dragover',e=>{if(dragFrom===null&&hasFiles(e)&&mediaKey){e.preventDefault();e.stopPropagation();card.style.boxShadow='0 0 0 2px var(--cyan)';return;}if(dragFrom===null||dragFrom===idx)return;e.preventDefault();const r=card.getBoundingClientRect();card.style.boxShadow=(e.clientY>r.top+r.height/2)?'inset 0 -2px 0 var(--cyan)':'inset 0 2px 0 var(--cyan)';});
      card.addEventListener('dragleave',()=>{card.style.boxShadow='';});
-     card.addEventListener('drop',e=>{if(dragFrom===null&&hasFiles(e)&&mediaKey){e.preventDefault();e.stopPropagation();card.style.boxShadow='';uploadFilesSeq(e.dataTransfer.files,url=>{item[mediaKey]=url;vItemMedia(bf,b.path,idx,url);},t=>{count.textContent=t;}).then(n=>{if(n){markDirty();draw();}});return;}e.preventDefault();card.style.boxShadow='';if(dragFrom===null||dragFrom===idx)return;const r=card.getBoundingClientRect();let to=idx+((e.clientY>r.top+r.height/2)?1:0);const it=arr.splice(dragFrom,1)[0];if(dragFrom<to)to--;arr.splice(to,0,it);markDirty();draw();});
+     card.addEventListener('drop',e=>{if(dragFrom===null&&hasFiles(e)&&mediaKey){e.preventDefault();e.stopPropagation();card.style.boxShadow='';uploadFilesSeq(e.dataTransfer.files,url=>{item[mediaKey]=url;vItemMedia(bf,b.path,idx,url);},t=>{count.textContent=t;}).then(n=>{if(n){markDirty();draw();}});return;}e.preventDefault();card.style.boxShadow='';if(dragFrom===null||dragFrom===idx)return;const r=card.getBoundingClientRect();let to=idx+((e.clientY>r.top+r.height/2)?1:0);const bef=snapArr();const it=arr.splice(dragFrom,1)[0];if(dragFrom<to)to--;arr.splice(to,0,it);moved(bef);});
      const body=document.createElement('div');body.className='card-body';
      (prim?b.fields.slice(0,1):b.fields).forEach(fd=>body.appendChild(renderField(fd,item,markDirty,{onChange:(fdef,val)=>{
       if(prim){if(typeof val==='string')vApply(bf+'#'+b.path+'.'+idx,val);}   /* stamped data-edit="file#path.N" */
@@ -1120,10 +1144,18 @@ const vApply=(edit,val,force)=>{if(vframe().contentWindow)vframe().contentWindow
 function repaintPreview(){
  if(!vframe().contentWindow)return 0;
  let sent=0;
+ /* a bridge that mirrors list items: repaint exactly what differs from the
+    published page (text, images, item fields, per-element styles, order) */
+ const viaDiff=new Set();
+ if(itemsLive())Object.keys(files).forEach(fn=>{
+  const st=files[fn];
+  if(!st||fn==='theme.json'||!(st.dirty||st.draft)||st.live==null)return;
+  pushDiff(fn,st.live,st.content);viaDiff.add(fn);sent++;
+ });
  (SECTIONS||[]).forEach(s=>{(s.blocks||[]).forEach(b=>{
   const fn=b.file||s.file;
   const st=fn&&files[fn];
-  if(!st||fn==='theme.json')return;
+  if(!st||fn==='theme.json'||viaDiff.has(fn))return;
   if(!st.dirty&&!st.draft)return;
   if(b.kind==='obj'){
    const obj=b.path?resolve(st.content,b.path):st.content;
@@ -1142,7 +1174,7 @@ function repaintPreview(){
  });});
  postTheme();
  const sj=files['styles.json'];
- if(sj&&sj.content&&vframe().contentWindow)Object.keys(sj.content).forEach(k=>{
+ if(sj&&sj.content&&!viaDiff.has('styles.json')&&vframe().contentWindow)Object.keys(sj.content).forEach(k=>{
   const v=sj.content[k]||{};
   vframe().contentWindow.postMessage({jrd:'styleapply',edit:k,color:v.color||'',align:v.align||''},'*');
  });
@@ -1533,7 +1565,7 @@ async function postFile(site,fn,st,extra,force){
     sha, or null after a publish */
  if(r.json&&Object.prototype.hasOwnProperty.call(r.json,'draftSha'))st.draftSha=r.json.draftSha||null;
  st.conflict=false;
- return{ok:true,json:r.json||{},changed};
+ return{ok:true,json:r.json||{},changed,sent};
 }
 /* Someone else saved a newer draft of this file. Ask which version to keep;
    resolves 'mine' | 'theirs' | 'cancel'. Same look as the schedule dialog. */
@@ -1631,6 +1663,7 @@ async function publishAll(){
    okCount++;
    if(r.json.draft){st.dirty=r.changed;st.draft=true;continue;} /* server downgraded to draft (no publish rights) */
    st.sha=r.json.sha;st.dirty=r.changed;st.draft=false;st.publishAt=null;
+   try{st.live=JSON.parse(r.sent);}catch(e){}   /* what is live now */
   }
  }finally{SAVING=false;$('save').disabled=false;}
  if(curSite!==site)return;
@@ -2338,6 +2371,13 @@ function renderAutoBtn(){
  b.appendChild(h);
 }
 function updateSaveHint(){
+ /* Publish carries a dot while anything is saved or edited but not live yet */
+ const pb=$('save');
+ if(pb){
+  const unpub=Object.entries(files).filter(([,st])=>st&&(st.dirty||st.draft)).filter(saveable).length;
+  pb.classList.toggle('has-dot',unpub>0);
+  pb.title=unpub?'You have changes that are not live yet. Publish puts them on the site.':'Put your changes on the live site';
+ }
  const b=$('saveDraftBtn');if(!b)return;
  const pending=Object.values(files).some(st=>st&&st.dirty);
  const warn=pending&&!autosaveOn();
