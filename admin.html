@@ -497,10 +497,9 @@ async function ensureFile(fn){
  /* a freshly loaded draft differs from the published page in the frame, so paint
     it in straight away rather than waiting for the next edit */
  if(files[fn].draft)setTimeout(repaintPreview,0);
- /* fold the pristine copy into the current undo snapshot so the first edit
-    to this file is undoable */
- if(HIST.idx>=0&&HIST.stack[HIST.idx]&&!HIST.stack[HIST.idx][fn])
-  HIST.stack[HIST.idx][fn]={content:JSON.parse(JSON.stringify(files[fn].content)),dirty:false,draft:!!r.json.draft};
+ /* fold the pristine copy into the undo snapshots so the first edit to this
+    file is undoable, however far back the user undoes */
+ histFold(fn);
  return files[fn];
 }
 const setMsg=(t,cls)=>{const m=$('msg');m.className='msg'+(cls?' '+cls:'');m.textContent=t;};
@@ -1120,7 +1119,7 @@ async function showSelection(d){
    if(siteHasFile('styles.json')){ /* color/align styling only where the site can store + render it */
     try{await ensureFile('styles.json');}catch(e){}
     try{await ensureFile('theme.json');}catch(e){}
-    if(!files['styles.json'])files['styles.json']={content:{},sha:null,dirty:false};
+    if(!files['styles.json']){files['styles.json']={content:{},sha:null,dirty:false};histFold('styles.json');}
     body.appendChild(styleControls(d.edit));
    }
    const tip=document.createElement('p');tip.className='msg';tip.textContent='Tip: you can also type directly on the page.';body.appendChild(tip);
@@ -1239,10 +1238,60 @@ function histPush(){
 }
 function histSchedule(){if(HIST.quiet)return;clearTimeout(HIST.t);HIST.t=setTimeout(histPush,600);}
 function histBtns(){const u=$('undoBtn'),r=$('redoBtn');if(u)u.disabled=HIST.idx<=0;if(r)r.disabled=HIST.idx>=HIST.stack.length-1;}
+/* Pristine copy of a file that was loaded (or created) after some snapshots
+   were taken: every snapshot that lacks it predates the load, so the file was
+   in exactly this state then. Folding it into all of them makes Undo reach
+   back past the load instead of silently skipping the file. */
+function histFold(fn){
+ if(!files[fn])return;
+ const pristine={content:deepCopy(files[fn].content),dirty:!!files[fn].dirty,draft:!!files[fn].draft};
+ HIST.stack.forEach(snap=>{if(snap&&!snap[fn])snap[fn]=deepCopy(pristine);});
+}
+const isMediaVal=v=>typeof v==='string'&&(/^CDN:/.test(v.trim())||/res\.cloudinary\.com\//.test(v)||/^https?:\/\/\S+\.(?:png|jpe?g|gif|webp|avif|svg|mp4|webm|mov)(?:[?#]|$)/i.test(v.trim()));
+/* Walk old vs new content of one data file and repaint whatever changed on the
+   page: text leaves (forced, since an undo is authoritative), images, and item
+   fields such as a gallery tile's size. Returns true when a list changed length
+   (an item was added or removed), which the page can only show after a reload. */
 function histDiffApply(fn,oldC,newC,path){
- if(typeof newC==='string'){if(oldC!==newC)vApply(fn+'#'+path,newC);return;}
- if(Array.isArray(newC)){for(let i=0;i<newC.length;i++)histDiffApply(fn,Array.isArray(oldC)?oldC[i]:undefined,newC[i],path?path+'.'+i:String(i));return;}
- if(newC&&typeof newC==='object'){for(const k in newC)histDiffApply(fn,(oldC&&typeof oldC==='object')?oldC[k]:undefined,newC[k],path?path+'.'+k:k);}
+ if(oldC===newC)return false;
+ if(Array.isArray(newC)){
+  let structural=!Array.isArray(oldC)||oldC.length!==newC.length;
+  for(let i=0;i<newC.length;i++)if(histDiffApply(fn,Array.isArray(oldC)?oldC[i]:undefined,newC[i],path?path+'.'+i:String(i)))structural=true;
+  return structural;
+ }
+ if(newC&&typeof newC==='object'){
+  let structural=false;
+  for(const k in newC)if(histDiffApply(fn,(oldC&&typeof oldC==='object')?oldC[k]:undefined,newC[k],path?path+'.'+k:k))structural=true;
+  return structural;
+ }
+ if(JSON.stringify(oldC)===JSON.stringify(newC))return false;
+ const edit=fn+'#'+path;
+ const media=isMediaVal(newC);
+ if(typeof newC==='string'){if(media)vMediaApply(edit,newC);else vApply(edit,newC,true);}
+ const m=path.match(/^(.*)\.(\d+)\.([^.]+)$/);            /* a field of a list item */
+ if(m){if(media)vItemMedia(fn,m[1],+m[2],newC);else vItemField(fn,m[1],+m[2],m[3],newC);}
+ return false;
+}
+/* Per-element color and alignment live in styles.json keyed by the element's
+   data-edit stamp. Send the page every key whose style changed, including keys
+   that disappeared (an empty color/align tells the bridge to clear it). */
+function styleDiffApply(oldC,newC){
+ const w=vframe().contentWindow;if(!w)return;
+ const a=oldC||{},b=newC||{};
+ new Set(Object.keys(a).concat(Object.keys(b))).forEach(k=>{
+  if(JSON.stringify(a[k]||null)===JSON.stringify(b[k]||null))return;
+  const v=b[k]||{};
+  w.postMessage({jrd:'styleapply',edit:k,color:v.color||'',align:v.align||''},'*');
+ });
+}
+/* Repaint the page after one file's content was replaced wholesale (undo, redo,
+   a restored version). Returns true when the page needs a reload to match. */
+function pushDiff(fn,before,after){
+ try{
+  if(fn==='styles.json'){styleDiffApply(before,after);return false;}
+  if(fn==='theme.json'){postTheme();return false;}
+  return histDiffApply(fn,before,after,'');
+ }catch(e){return false;}
 }
 function histRestore(dir){
  histPush();                       /* capture any pending edits first */
@@ -1251,21 +1300,21 @@ function histRestore(dir){
  HIST.idx=to;
  const snap=HIST.stack[HIST.idx];
  HIST.quiet=true;
+ let structural=false;
  try{
   for(const fn in snap){
    if(!files[fn])continue;
    const before=files[fn].content;
    files[fn].content=deepCopy(snap[fn].content);
    files[fn].dirty=snap[fn].dirty;files[fn].draft=snap[fn].draft;
-   try{histDiffApply(fn,before,files[fn].content,'');}catch(e){}
+   if(pushDiff(fn,before,files[fn].content))structural=true;
   }
-  if(snap['theme.json'])try{postTheme();}catch(e){}
   try{renderSidebar();}catch(e){}
   try{if($('drawer').classList.contains('open'))openSection(curId);}catch(e){}
   closeSel();
  }finally{HIST.quiet=false;}
  histBtns();
- setMsg(dir<0?'Undone ↶':'Redone ↷');
+ setMsg((dir<0?'Undone ↶':'Redone ↷')+(structural?' (an added or removed item shows on the page after Reload)':''));
 }
 document.addEventListener('keydown',e=>{
  const t=e.target;
@@ -1360,9 +1409,11 @@ async function showHistory(fn){
    if(r2.status!==200){info.textContent=r2.json.error||'Could not load that version.';return;}
    try{await ensureFile(fn);}catch(e){}
    if(!files[fn]){info.textContent='Could not open '+fn+'.';return;}
+   const before=files[fn].content;
    files[fn].content=r2.json.content;files[fn].dirty=true;
-   renderSidebar();try{renderBlocks();}catch(e){}
-   close();setMsg('Restored the version from '+when+' into the editor — review it, then Publish.','ok');
+   const structural=pushDiff(fn,before,files[fn].content);
+   closeSel();renderSidebar();try{if($('drawer').classList.contains('open'))openSection(curId);else renderBlocks();}catch(e){}
+   close();setMsg('Restored the version from '+when+' into the editor'+(structural?' (added or removed items show on the page after Reload)':'')+'. Review it, then Publish.','ok');
   };
   list.appendChild(row);
  });
@@ -1804,6 +1855,7 @@ async function selectSite(s){
  if(r.status!==200){alert('Could not load the schema for '+s.label+': '+((r.json&&r.json.error)||r.status));return;}
  compileSchema(r.json.content);
  for(const k in files)delete files[k];        // clear cache when switching repos
+ clearTimeout(HIST.t);HIST.t=null;HIST.stack=[];HIST.idx=-1;histBtns();   // undo history belongs to the old site
  const first=SECTIONS.find(x=>x.id&&sectionVisible(x));curId=first?first.id:'home';
  $('siteLabel').textContent=s.label;
  $('picker').style.display='none';$('gate').style.display='none';$('app').style.display='block';
