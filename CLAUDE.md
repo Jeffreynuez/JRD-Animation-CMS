@@ -41,9 +41,8 @@ CRON_SECRET *and* opportunistic pokes from the admin every 5 min).
 GC-Windsor build.js chains stored crop transforms BEFORE the delivery
 transform (order matters: crop coords are in original pixels).
 
-**Not configured yet:** `CRON_SECRET` (any random string - Vercel then
-authenticates the daily cron; without it only the in-editor pokes fire
-scheduled publishes).
+`CRON_SECRET` is set on the Vercel project (since 2026-08-08), so the daily
+Vercel cron authenticates; the in-editor pokes fire scheduled publishes too.
 
 **Brevo email is configured but was being BLOCKED (checked 2026-09-14).**
 `BREVO_API_KEY` and `MAIL_FROM_EMAIL` ARE set on the Vercel project, and
@@ -142,7 +141,6 @@ Editor (admin.html):
 Still open (deliberately not done in the sweep):
 - Remove `ADMIN_PASSWORD` from the Vercel env once nobody uses the legacy key:
   it is a full owner credential with no 2FA and no throttle.
-- Set `CRON_SECRET` so the daily Vercel cron authenticates.
 - Proguild's `_schema.json` has no `mediaFolder` (its assets are under
   `proguild/`), so its media library shows nothing until one is added.
 - Two editors on one site overwrite each other's drafts; approve and the cron
