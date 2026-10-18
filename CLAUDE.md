@@ -230,15 +230,19 @@ Live list changes in Manage content (2026-09-30):
 View live and the preview use the registry `liveUrl`. After a DNS cutover,
 change it to the real domain (Edit site in the picker). Done 2026-09-30 for
 GC Windsor (www.gcwindsor.com), the JRD Portfolio (www.jrdelanuez.com) and
-Salee (saleestarbuck.com); Proguild stays on proguild.vercel.app because
-proguild.com is not the new site.
+Salee (saleestarbuck.com); Proguild moved to https://proguildfm.com on
+2026-10-18 (its own domain; proguild.com was never the site).
 
 ## Deploy workflow (this is the part people break)
 
-- Claude sessions CANNOT push to GitHub from the Cowork cloud sandbox (the
-  GitHub API is proxied and returns 403). Write files to Jeffrey's local repo
-  (`App creation business/JRD-Animation-CMS`) via the device bridge; **Jeffrey
-  commits and pushes in GitHub Desktop**. Vercel auto-deploys.
+- Since 2026-10-14 Claude sessions commit and push their own work from the
+  PC shell (device_bash) with `_tools/git-push.sh`, under "Pushing and
+  merging" in the project doc `claude/hard-rules.md`: run the checks first,
+  then confirm the Vercel deploy is READY and that at least two managed sites
+  load their schema, and roll back at once if anything breaks. The old rule
+  (Jeffrey commits and pushes in GitHub Desktop) is retired. Vercel
+  auto-deploys every push to main, so every push here is production for
+  every client site.
 - Browsers cache `admin.html` hard — always tell Jeffrey to Ctrl+F5 after a
   deploy before judging whether a change worked.
 - `admin.html` has TWO `<script>` blocks (QR lib, then the app). When syntax-
