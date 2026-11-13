@@ -119,6 +119,42 @@
     "es/legal.json",
     "es/pay.json"
    ]
+  },
+  {
+   "id": "emmanuel",
+   "label": "Boutique Emmanuel Menswear",
+   "repo": "Jeffreynuez/Emmanuel",
+   "branch": "main",
+   "liveUrl": "https://emmanuel-menswear.vercel.app",
+   "group": "",
+   "schema": "_schema.json",
+   "files": [
+    "site.json",
+    "stores.json",
+    "prices.json",
+    "home.json",
+    "suits.json",
+    "blazers.json",
+    "weddings.json",
+    "fittings.json",
+    "contact.json",
+    "catalog.json",
+    "shop.json",
+    "theme.json",
+    "swapper.json",
+    "fr/site.json",
+    "fr/stores.json",
+    "fr/prices.json",
+    "fr/home.json",
+    "fr/suits.json",
+    "fr/blazers.json",
+    "fr/weddings.json",
+    "fr/fittings.json",
+    "fr/contact.json",
+    "fr/catalog.json",
+    "fr/shop.json",
+    "fr/swapper.json"
+   ]
   }
  ]
 }
